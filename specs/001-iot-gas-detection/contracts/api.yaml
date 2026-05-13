@@ -1,0 +1,1317 @@
+openapi: 3.0.3
+info:
+  title: Sistema IoT de Detección de Fugas de Gas API
+  description: |
+    API REST para monitoreo y control del sistema de detección de fugas de gas.
+    Implementa RBAC con 4 roles: admin, operator, technician, auditor.
+  version: 1.0.0
+  contact:
+    name: GEUS Development Team
+
+servers:
+  - url: https://{domain}/api/v1
+    description: Production server
+    variables:
+      domain:
+        default: api.geus.example.com
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Sensors
+    description: Sensor management and monitoring
+  - name: Readings
+    description: Telemetry data access
+  - name: Alerts
+    description: Alert management
+  - name: Users
+    description: User management (admin only)
+  - name: Commands
+    description: Device control commands
+  - name: Audit
+    description: Audit log access (auditor only)
+  - name: Health
+    description: System health checks
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sensors:
+    get:
+      tags: [Sensors]
+      summary: List all sensors
+      description: |
+        - Admin/Technician: All sensors
+        - Operator: Only assigned sensors
+        - Auditor: All sensors (read-only)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SensorStatus'
+      responses:
+        '200':
+          description: List of sensors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SensorListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Sensors]
+      summary: Register new sensor
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SensorCreateRequest'
+      responses:
+        '201':
+          description: Sensor registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sensor'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /sensors/{sensor_id}:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    get:
+      tags: [Sensors]
+      summary: Get sensor details
+      responses:
+        '200':
+          description: Sensor details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sensor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Sensors]
+      summary: Update sensor
+      description: |
+        - Admin: All fields
+        - Technician: correction_factor, test_mode only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SensorUpdateRequest'
+      responses:
+        '200':
+          description: Sensor updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sensor'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [Sensors]
+      summary: Decommission sensor
+      description: Admin only. Soft delete - marks as decommissioned.
+      responses:
+        '204':
+          description: Sensor decommissioned
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /sensors/{sensor_id}/current:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    get:
+      tags: [Readings]
+      summary: Get current sensor reading
+      description: Returns the most recent reading for the sensor.
+      responses:
+        '200':
+          description: Current reading
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reading'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sensors/{sensor_id}/readings:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    get:
+      tags: [Readings]
+      summary: Get historical readings
+      description: |
+        - Operator: Last 24 hours only
+        - Admin/Technician/Auditor: Full access with date range
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Historical readings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingListResponse'
+
+  /sensors/{sensor_id}/stats:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    get:
+      tags: [Readings]
+      summary: Get sensor statistics
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+      responses:
+        '200':
+          description: Statistics for period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SensorStats'
+
+  /sensors/{sensor_id}/health:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    get:
+      tags: [Sensors]
+      summary: Get sensor hardware health
+      description: Technician, Admin, Auditor only
+      responses:
+        '200':
+          description: Hardware health metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SensorHealth'
+
+  /alerts:
+    get:
+      tags: [Alerts]
+      summary: List alerts
+      parameters:
+        - name: sensor_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AlertStatus'
+        - name: severity
+          in: query
+          schema:
+            $ref: '#/components/schemas/AlertSeverity'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertListResponse'
+
+  /alerts/{alert_id}:
+    parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Alerts]
+      summary: Get alert details
+      responses:
+        '200':
+          description: Alert details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+
+  /alerts/{alert_id}/acknowledge:
+    parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Alerts]
+      summary: Acknowledge alert
+      description: Admin, Operator (assigned sensors only)
+      responses:
+        '200':
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+
+  /alerts/{alert_id}/resolve:
+    parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Alerts]
+      summary: Resolve alert
+      description: |
+        Admin, Operator (assigned sensors only).
+        Critical alerts require explicit resolution.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Alert resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+
+  /commands/valve/{sensor_id}:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    post:
+      tags: [Commands]
+      summary: Control valve
+      description: |
+        - Admin: Full control
+        - Operator: Only panic close (assigned sensors)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValveCommand'
+      responses:
+        '202':
+          description: Command accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+
+  /commands/dissipator/{sensor_id}:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    post:
+      tags: [Commands]
+      summary: Control dissipator
+      description: |
+        Admin, Operator (assigned sensors).
+        Cannot turn off during active gas alert.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DissipatorCommand'
+      responses:
+        '202':
+          description: Command accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+        '409':
+          description: Cannot turn off during active alert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /commands/test-mode/{sensor_id}:
+    parameters:
+      - $ref: '#/components/parameters/SensorIdParam'
+    post:
+      tags: [Commands]
+      summary: Toggle test mode
+      description: Technician only. Auto-expires after 30 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestModeCommand'
+      responses:
+        '202':
+          description: Command accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: Admin only
+      parameters:
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+
+    post:
+      tags: [Users]
+      summary: Create user
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/{user_id}:
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Users]
+      summary: Get user details
+      description: Admin only (or self)
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    patch:
+      tags: [Users]
+      summary: Update user
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    delete:
+      tags: [Users]
+      summary: Delete user
+      description: Admin only. Soft delete - marks as deleted.
+      responses:
+        '204':
+          description: User deleted
+
+  /users/{user_id}/sensors:
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Users]
+      summary: Get user's assigned sensors
+      description: Admin only (or self for operators)
+      responses:
+        '200':
+          description: Assigned sensors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SensorListResponse'
+
+    put:
+      tags: [Users]
+      summary: Assign sensors to operator
+      description: Admin only. Replaces all assignments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sensor_ids]
+              properties:
+                sensor_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Sensors assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SensorListResponse'
+
+  /audit/logs:
+    get:
+      tags: [Audit]
+      summary: Query audit logs
+      description: Auditor only (read-only)
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: sensor_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+
+  /audit/export:
+    post:
+      tags: [Audit]
+      summary: Export audit data
+      description: Auditor only. Async export for forensic analysis.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '202':
+          description: Export started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResponse'
+
+  /audit/security:
+    get:
+      tags: [Audit]
+      summary: Security metrics
+      description: Auditor only. Failed logins, anomalies, latency.
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d]
+      responses:
+        '200':
+          description: Security metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityMetrics'
+
+  /config:
+    get:
+      tags: [Sensors]
+      summary: Get global configuration
+      description: Admin only
+      responses:
+        '200':
+          description: Global config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalConfig'
+
+    patch:
+      tags: [Sensors]
+      summary: Update global configuration
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GlobalConfigUpdate'
+      responses:
+        '200':
+          description: Config updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalConfig'
+
+  /health:
+    get:
+      tags: [Health]
+      summary: System health check
+      security: []
+      responses:
+        '200':
+          description: System healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: System unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      security: []
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Not ready
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SensorIdParam:
+      name: sensor_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenResponse:
+      type: object
+      required: [access_token, refresh_token, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Seconds until expiration
+        user:
+          $ref: '#/components/schemas/User'
+
+    SensorStatus:
+      type: string
+      enum: [online, offline, maintenance]
+
+    AlertStatus:
+      type: string
+      enum: [active, acknowledged, resolved]
+
+    AlertSeverity:
+      type: string
+      enum: [warning, critical]
+
+    UserRole:
+      type: string
+      enum: [admin, operator, technician, auditor]
+
+    Sensor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_id:
+          type: string
+        location:
+          type: string
+        status:
+          $ref: '#/components/schemas/SensorStatus'
+        wifi_signal:
+          type: integer
+        mqtt_connected:
+          type: boolean
+        uptime_seconds:
+          type: integer
+        test_mode:
+          type: boolean
+        test_mode_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        correction_factor:
+          type: number
+        last_reading_at:
+          type: string
+          format: date-time
+          nullable: true
+        valve:
+          $ref: '#/components/schemas/ValveState'
+        dissipator:
+          $ref: '#/components/schemas/DissipatorState'
+        created_at:
+          type: string
+          format: date-time
+
+    ValveState:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [open, closed]
+        mechanical_status:
+          type: string
+          enum: [ok, stuck, unknown]
+        last_state_change:
+          type: string
+          format: date-time
+
+    DissipatorState:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [on, off]
+        activation_mode:
+          type: string
+          enum: [manual, automatic]
+        locked_by_alert:
+          type: boolean
+        last_state_change:
+          type: string
+          format: date-time
+
+    SensorCreateRequest:
+      type: object
+      required: [device_id, location]
+      properties:
+        device_id:
+          type: string
+          maxLength: 64
+        location:
+          type: string
+          maxLength: 255
+
+    SensorUpdateRequest:
+      type: object
+      properties:
+        location:
+          type: string
+          maxLength: 255
+        correction_factor:
+          type: number
+          minimum: 0.5
+          maximum: 2.0
+        test_mode:
+          type: boolean
+
+    SensorListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sensor'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    Reading:
+      type: object
+      properties:
+        sensor_id:
+          type: string
+          format: uuid
+        gas_ppm:
+          type: number
+        temperature_c:
+          type: number
+        humidity_percent:
+          type: number
+        wifi_signal:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    ReadingListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reading'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    SensorStats:
+      type: object
+      properties:
+        sensor_id:
+          type: string
+          format: uuid
+        period:
+          type: string
+        gas:
+          $ref: '#/components/schemas/StatValues'
+        temperature:
+          $ref: '#/components/schemas/StatValues'
+        humidity:
+          $ref: '#/components/schemas/StatValues'
+
+    StatValues:
+      type: object
+      properties:
+        min:
+          type: number
+        max:
+          type: number
+        avg:
+          type: number
+        count:
+          type: integer
+
+    SensorHealth:
+      type: object
+      properties:
+        sensor_id:
+          type: string
+          format: uuid
+        wifi_signal:
+          type: integer
+        mqtt_connected:
+          type: boolean
+        uptime_seconds:
+          type: integer
+        last_restart:
+          type: string
+          format: date-time
+        firmware_version:
+          type: string
+        memory_free_bytes:
+          type: integer
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sensor_id:
+          type: string
+          format: uuid
+        sensor_location:
+          type: string
+        gas_level_ppm:
+          type: number
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        status:
+          $ref: '#/components/schemas/AlertStatus'
+        triggered_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledged_by:
+          type: string
+          format: uuid
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        resolved_by:
+          type: string
+          format: uuid
+          nullable: true
+        auto_resolved:
+          type: boolean
+
+    AlertListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    ValveCommand:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [open, close, panic_close]
+
+    DissipatorCommand:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [on, off]
+
+    TestModeCommand:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        duration_minutes:
+          type: integer
+          minimum: 5
+          maximum: 60
+          default: 30
+
+    CommandResponse:
+      type: object
+      properties:
+        command_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [accepted, pending, delivered, failed]
+        message:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          type: string
+          enum: [active, suspended]
+        notifications_enabled:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    UserCreateRequest:
+      type: object
+      required: [email, password, name, role]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+          maxLength: 255
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          type: string
+          enum: [active, suspended]
+        notifications_enabled:
+          type: boolean
+
+    UserListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_email:
+          type: string
+          nullable: true
+        user_role:
+          $ref: '#/components/schemas/UserRole'
+        action:
+          type: string
+        sensor_id:
+          type: string
+          format: uuid
+          nullable: true
+        details:
+          type: object
+        ip_origin:
+          type: string
+
+    AuditLogListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    ExportRequest:
+      type: object
+      required: [type, start, end]
+      properties:
+        type:
+          type: string
+          enum: [audit_logs, telemetry, alerts]
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        sensor_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        format:
+          type: string
+          enum: [csv, json]
+          default: csv
+
+    ExportResponse:
+      type: object
+      properties:
+        export_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        download_url:
+          type: string
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    SecurityMetrics:
+      type: object
+      properties:
+        period:
+          type: string
+        failed_logins:
+          type: integer
+        failed_mqtt_connections:
+          type: integer
+        anomalous_traffic_events:
+          type: integer
+        avg_api_latency_ms:
+          type: number
+        avg_mqtt_latency_ms:
+          type: number
+
+    GlobalConfig:
+      type: object
+      properties:
+        gas_threshold_warning:
+          type: integer
+          description: PPM for warning alerts
+        gas_threshold_critical:
+          type: integer
+          description: PPM for critical alerts
+        test_mode_timeout_minutes:
+          type: integer
+        alert_notification_timeout_seconds:
+          type: integer
+        data_retention_days:
+          type: integer
+
+    GlobalConfigUpdate:
+      type: object
+      properties:
+        gas_threshold_warning:
+          type: integer
+          minimum: 100
+          maximum: 500
+        gas_threshold_critical:
+          type: integer
+          minimum: 300
+          maximum: 1000
+        test_mode_timeout_minutes:
+          type: integer
+          minimum: 5
+          maximum: 120
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [ok, error]
+            influxdb:
+              type: string
+              enum: [ok, error]
+            rabbitmq:
+              type: string
+              enum: [ok, error]
+            mqtt:
+              type: string
+              enum: [ok, error]
