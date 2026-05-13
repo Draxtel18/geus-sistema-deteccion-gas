@@ -130,7 +130,7 @@ Los operadores deben poder ver el historial de lecturas de sensores y alertas pa
 - **FR-032**: Los Administradores DEBEN poder configurar umbrales de alerta globales (ppm para gas peligroso y crítico)
 - **FR-033**: Los Usuarios/Operadores DEBEN tener acceso solo a los sensores que les han sido asignados explícitamente
 - **FR-034**: Los Usuarios/Operadores DEBEN poder activar manualmente el cierre de válvula mediante "Botón de Pánico" en la app
-- **FR-035**: Los Usuarios/Operadores DEBEN poder ver historial de telemetría de sus dispositivos asignados (últimas 24 horas)
+- **FR-035**: Los Usuarios/Operadores DEBEN poder ver historial de telemetría de sus dispositivos asignados (últimas 24 horas, últimas semana/semanas, último mes/meses, último año/años)
 - **FR-036**: Los Técnicos de Mantenimiento DEBEN poder activar "Modo Prueba" en dispositivos ESP32 para silenciar notificaciones durante calibración
 - **FR-037**: Los Técnicos de Mantenimiento DEBEN tener acceso a métricas de salud del hardware (señal WiFi, estado MQTT, uptime)
 - **FR-038**: Los Técnicos de Mantenimiento DEBEN poder ajustar el factor de corrección del sensor MQ-6 remotamente sin reprogramar el ESP32
@@ -213,7 +213,7 @@ Los operadores deben poder ver el historial de lecturas de sensores y alertas pa
 
 1. **Administrador (Admin/SuperUser)**: Gestión completa del sistema a nivel macro. Capacidades: crear/editar/suspender/eliminar usuarios de cualquier rol, registrar y dar de baja dispositivos ESP32, asignar ubicaciones físicas a sensores, configurar umbrales de alerta globales (ppm para gas peligroso y crítico).
 
-2. **Usuario/Operador (Residente)**: Consumidor final con acceso limitado a sensores asignados. Capacidades: monitorear estado actual (gas, temperatura, humedad) solo de sus sensores asignados, recibir notificaciones push de alertas, activar "Botón de Pánico" para cierre manual de válvula, ver historial de telemetría de sus dispositivos (últimas 24 horas).
+2. **Usuario/Operador (Residente)**: Consumidor final con acceso limitado a sensores asignados. Capacidades: monitorear estado actual (gas, temperatura, humedad) solo de sus sensores asignados, recibir notificaciones push de alertas, activar "Botón de Pánico" para cierre manual de válvula, ver historial de telemetría de sus dispositivos (últimas 24 horas, últimas semana/semanas, último mes/meses, último año/años).
 
 3. **Técnico de Mantenimiento (Técnico/Instalador)**: Rol especializado para mantenimiento y calibración de hardware. Capacidades: activar "Modo Prueba" en ESP32 (silencia notificaciones temporalmente durante calibración), acceder a métricas de salud del hardware (señal WiFi, estado MQTT, uptime), ajustar factor de corrección del sensor MQ-6 remotamente sin reprogramar firmware. El "Modo Prueba" se desactiva automáticamente después de 30 minutos por seguridad.
 
