@@ -27,13 +27,29 @@ settings = AppSettings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await rabbitmq_client.connect()
-    await mqtt_client.connect()
+    
+    try:
+        await rabbitmq_client.connect()
+    except Exception as e:
+        print(f"Warning: Could not connect to RabbitMQ: {e}")
+    
+    try:
+        await mqtt_client.connect()
+    except Exception as e:
+        print(f"Warning: Could not connect to MQTT: {e}")
     
     yield
     
-    await rabbitmq_client.close()
-    await mqtt_client.close()
+    try:
+        await rabbitmq_client.close()
+    except Exception:
+        pass
+    
+    try:
+        await mqtt_client.close()
+    except Exception:
+        pass
+    
     await close_db()
 
 
