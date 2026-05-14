@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integ
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.infrastructure.database.connection import Base
+from app.infrastructure.database.base import Base
 
 
 class SensorModel(Base):

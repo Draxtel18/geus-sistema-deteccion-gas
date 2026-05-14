@@ -4,7 +4,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic_settings import BaseSettings
 
-from app.infrastructure.api.routes import alerts, audit, auth, commands, config, health, sensors, users
+from app.infrastructure.api.routes import (
+    alerts,
+    audit,
+    auth,
+    commands,
+    config,
+    health,
+    sensors,
+    users,
+)
 from app.infrastructure.database.connection import close_db, init_db
 from app.infrastructure.messaging.mqtt_client import mqtt_client
 from app.infrastructure.messaging.rabbitmq_client import rabbitmq_client
@@ -27,29 +36,29 @@ settings = AppSettings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    
+
     try:
         await rabbitmq_client.connect()
     except Exception as e:
         print(f"Warning: Could not connect to RabbitMQ: {e}")
-    
+
     try:
         await mqtt_client.connect()
     except Exception as e:
         print(f"Warning: Could not connect to MQTT: {e}")
-    
+
     yield
-    
+
     try:
         await rabbitmq_client.close()
     except Exception:
         pass
-    
+
     try:
         await mqtt_client.close()
     except Exception:
         pass
-    
+
     await close_db()
 
 

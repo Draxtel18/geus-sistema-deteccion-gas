@@ -17,11 +17,7 @@ class DissipatorCommandRequest(BaseModel):
     command: str
 
     class Config:
-        json_schema_extra = {
-            "example": {
-                "command": "on"
-            }
-        }
+        json_schema_extra = {"example": {"command": "on"}}
 
 
 class DissipatorCommandResponse(BaseModel):
@@ -41,35 +37,34 @@ async def panic_button(
 ):
     from app.domain.sensor.entities import CommandSource
     from app.infrastructure.database.repositories.sensor_repository import SensorRepository
-    
+
     repo = SensorRepository(session)
-    
+
     sensor = await repo.get_by_id(sensor_id)
     if not sensor:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sensor {sensor_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Sensor {sensor_id} not found"
         )
-    
+
     valve = await repo.get_valve_by_sensor_id(sensor_id)
     if not valve:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No valve found for sensor {sensor_id}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No valve found for sensor {sensor_id}"
         )
-    
+
     from app.domain.sensor.services import SensorStateManager
+
     state_manager = SensorStateManager(sensor, valve, None)
-    
+
     state_manager.close_valve(CommandSource.REMOTE, gas_level_ppm=0.0)
     await repo.update_valve(valve)
-    
+
     await mqtt_client.publish_valve_command(
         device_id=sensor.device_id,
         command="close",
         source="panic",
     )
-    
+
     return {
         "sensor_id": str(sensor_id),
         "valve_id": str(valve.id),
@@ -86,23 +81,24 @@ async def activate_test_mode(
     session: AsyncSession = Depends(get_current_session),
 ):
     from app.infrastructure.database.repositories.sensor_repository import SensorRepository
-    
+
     repo = SensorRepository(session)
-    
+
     sensor = await repo.get_by_id(sensor_id)
     if not sensor:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sensor {sensor_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Sensor {sensor_id} not found"
         )
-    
+
     sensor.activate_test_mode(timeout_minutes)
     await repo.update(sensor)
-    
+
     return {
         "sensor_id": str(sensor_id),
         "test_mode": sensor.test_mode,
-        "test_mode_expires_at": sensor.test_mode_expires_at.isoformat() if sensor.test_mode_expires_at else None,
+        "test_mode_expires_at": sensor.test_mode_expires_at.isoformat()
+        if sensor.test_mode_expires_at
+        else None,
     }
 
 
@@ -114,8 +110,7 @@ async def control_dissipator(
 ):
     if request.command not in ["on", "off"]:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Command must be 'on' or 'off'"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Command must be 'on' or 'off'"
         )
 
     repo = SensorRepository(session)
@@ -150,17 +145,11 @@ async def control_dissipator(
         )
 
     except SensorNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except DissipatorLockedError:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail="Cannot deactivate dissipator while alert is active. Dissipator is locked by safety protocol."
+            detail="Cannot deactivate dissipator while alert is active. Dissipator is locked by safety protocol.",
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

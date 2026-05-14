@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import relationship
 
-from app.infrastructure.database.connection import Base
+from app.infrastructure.database.base import Base
 
 
 class UserModel(Base):

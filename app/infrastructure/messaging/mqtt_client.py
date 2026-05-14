@@ -31,7 +31,7 @@ class MQTTClientWrapper:
         self.client: aiomqtt.Client | None = None
         self.subscriptions: dict[str, Callable[[str, dict[str, Any]], Awaitable[None]]] = {}
 
-    async def connect(self, retries: int = 5, delay: int = 2) -> None:
+    async def connect(self, retries: int = 30, delay: int = 2) -> None:
         tls_params = None
         if settings.mqtt_use_tls and settings.mqtt_ca_cert_path:
             tls_params = aiomqtt.TLSParameters(
@@ -48,7 +48,7 @@ class MQTTClientWrapper:
 
         for attempt in range(retries):
             try:
-                logger.info(f"Conectando a Mosquitto MQTT (Intento {attempt + 1}/{retries})...")
+                logger.info(f"Conectando a Mosquitto MQTT en {settings.mqtt_broker_host}:{settings.mqtt_broker_port} (Intento {attempt + 1}/{retries})...")
                 await self.client.__aenter__()
                 logger.info("¡Conexión MQTT establecida con éxito!")
                 return

@@ -35,7 +35,7 @@ class RabbitMQClient:
         self.exchanges: dict[str, aio_pika.Exchange] = {}
         self.queues: dict[str, aio_pika.Queue] = {}
 
-    async def connect(self, retries: int = 5, delay: int = 2) -> None:
+    async def connect(self, retries: int = 30, delay: int = 2) -> None:
         for attempt in range(retries):
             try:
                 logger.info(f"Conectando a RabbitMQ (Intento {attempt + 1}/{retries})...")

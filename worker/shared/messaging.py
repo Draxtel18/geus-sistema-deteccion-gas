@@ -35,7 +35,7 @@ class WorkerRabbitMQClient:
         self.connection: aio_pika.Connection | None = None
         self.channel: aio_pika.Channel | None = None
 
-    async def connect(self, retries: int = 5, delay: int = 5) -> None:
+    async def connect(self, retries: int = 30, delay: int = 5) -> None:
         for attempt in range(retries):
             try:
                 logger.info(f"Worker conectando a RabbitMQ (Intento {attempt + 1}/{retries})...")
@@ -83,7 +83,7 @@ class WorkerMQTTClient:
         self.client: aiomqtt.Client | None = None
         self.subscribed_topics: set[str] = set()
 
-    async def connect(self, retries: int = 5, delay: int = 5) -> None:
+    async def connect(self, retries: int = 30, delay: int = 5) -> None:
         self.client = aiomqtt.Client(
             hostname=settings.mqtt_broker_host, port=settings.mqtt_broker_port
         )

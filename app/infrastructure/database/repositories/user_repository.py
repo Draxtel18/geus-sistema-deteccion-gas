@@ -33,6 +33,13 @@ class UserRepository(IUserRepository):
         models = result.scalars().all()
         return [self._to_entity(model) for model in models]
 
+    async def list_by_role(self, role: UserRole, skip: int = 0, limit: int = 100) -> list[User]:
+        result = await self.session.execute(
+            select(UserModel).where(UserModel.role == role.value).offset(skip).limit(limit)
+        )
+        models = result.scalars().all()
+        return [self._to_entity(model) for model in models]
+
     async def save(self, user: User) -> User:
         model = self._to_model(user)
         self.session.add(model)
@@ -75,19 +82,43 @@ class UserRepository(IUserRepository):
 
         return False
 
-    async def get_user_sensor_assignments(self, user_id: UUID) -> list[UserSensorAssignment]:
+    async def get_sensor_assignments(self, user_id: UUID) -> list[UserSensorAssignment]:
         result = await self.session.execute(
             select(UserSensorAssignmentModel).where(UserSensorAssignmentModel.user_id == user_id)
         )
         models = result.scalars().all()
         return [self._assignment_to_entity(model) for model in models]
 
-    async def save_sensor_assignment(self, assignment: UserSensorAssignment) -> UserSensorAssignment:
+    async def get_assigned_sensors(self, user_id: UUID) -> list[UUID]:
+        result = await self.session.execute(
+            select(UserSensorAssignmentModel.sensor_id).where(
+                UserSensorAssignmentModel.user_id == user_id
+            )
+        )
+        return list(result.scalars().all())
+
+    async def assign_sensor(self, assignment: UserSensorAssignment) -> UserSensorAssignment:
         model = self._assignment_to_model(assignment)
         self.session.add(model)
         await self.session.flush()
         await self.session.refresh(model)
         return self._assignment_to_entity(model)
+
+    async def unassign_sensor(self, user_id: UUID, sensor_id: UUID) -> bool:
+        result = await self.session.execute(
+            select(UserSensorAssignmentModel).where(
+                UserSensorAssignmentModel.user_id == user_id,
+                UserSensorAssignmentModel.sensor_id == sensor_id
+            )
+        )
+        model = result.scalar_one_or_none()
+
+        if model:
+            await self.session.delete(model)
+            await self.session.flush()
+            return True
+
+        return False
 
     async def delete_sensor_assignment(self, assignment_id: UUID) -> bool:
         result = await self.session.execute(

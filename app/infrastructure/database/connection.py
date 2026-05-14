@@ -1,9 +1,21 @@
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import declarative_base
 
 from pydantic_settings import BaseSettings
+
+from app.infrastructure.database.base import Base
+
+from app.infrastructure.database.models import (  
+    AlertModel,
+    AuditLogModel,
+    DissipatorModel,
+    GlobalConfigModel,
+    SensorModel,
+    UserModel,
+    UserSensorAssignmentModel,
+    ValveModel,
+)
 
 
 class DatabaseSettings(BaseSettings):
@@ -15,6 +27,7 @@ class DatabaseSettings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
     @property
     def database_url(self) -> str:
@@ -43,7 +56,6 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-Base = declarative_base()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
