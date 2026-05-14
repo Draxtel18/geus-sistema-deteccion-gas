@@ -8,9 +8,12 @@ RUN apk update && apk add --no-cache \
     postgresql-client \
     libpq-dev
 
-COPY requirements.txt .
+COPY worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY alembic.ini /worker/alembic.ini
+COPY alembic/ /worker/alembic/
+
+COPY worker/ /worker/
 
 CMD ["python", "main.py"]

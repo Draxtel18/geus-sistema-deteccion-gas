@@ -1,22 +1,9 @@
 from collections.abc import AsyncGenerator
 
+from pydantic_settings import BaseSettings
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from pydantic_settings import BaseSettings
-
 from app.infrastructure.database.base import Base
-
-from app.infrastructure.database.models import (  
-    AlertModel,
-    AuditLogModel,
-    DissipatorModel,
-    GlobalConfigModel,
-    SensorModel,
-    UserModel,
-    UserSensorAssignmentModel,
-    ValveModel,
-)
-
 
 class DatabaseSettings(BaseSettings):
     postgres_host: str = "localhost"

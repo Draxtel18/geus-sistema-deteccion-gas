@@ -8,10 +8,13 @@ RUN apk update && apk add --no-cache \
     postgresql-client \
     libpq-dev
 
-COPY requirements.txt .
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY alembic.ini /app/alembic.ini
+COPY alembic/ /app/alembic/
+
+COPY app/ /app/
 
 EXPOSE 8000
 
