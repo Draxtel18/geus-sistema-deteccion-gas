@@ -6,7 +6,9 @@ RUN apk update && apk add --no-cache \
     gcc \
     musl-dev \
     postgresql-client \
-    libpq-dev
+    libpq-dev \
+    libffi-dev \
+    openssl-dev
 
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
