@@ -1,26 +1,30 @@
 from collections.abc import AsyncGenerator
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.infrastructure.database.base import Base
 
-class DatabaseSettings(BaseSettings):
-    postgres_host: str = "localhost"
-    postgres_port: int = 5432
-    postgres_db: str = "geus_gas_detection"
-    postgres_user: str = "geus_user"
-    postgres_password: str = "geus_password"
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+class DatabaseSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_ignore_empty=True,
+        extra="ignore",
+        env_prefix="POSTGRES_", 
+    )
+
+    host: str = "localhost"
+    port: int = 5432
+    db: str = "geus_gas_detection"
+    user: str = "geus_user"
+    password: str = "geus_password"
 
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"postgresql+asyncpg://{self.user}:{self.password}"
+            f"@{self.host}:{self.port}/{self.db}"
         )
 
 
@@ -42,7 +46,6 @@ AsyncSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
-
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
