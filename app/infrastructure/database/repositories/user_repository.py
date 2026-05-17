@@ -56,11 +56,10 @@ class UserRepository(IUserRepository):
         if model:
             model.email = user.email
             model.password_hash = user.password_hash
-            model.full_name = user.full_name
+            model.name = user.full_name
             model.role = user.role.value
-            model.phone = user.phone
             model.status = user.status.value
-            model.last_login = user.last_login
+            model.last_login_at = user.last_login_at
             model.updated_at = user.updated_at
 
             await self.session.flush()
@@ -138,11 +137,10 @@ class UserRepository(IUserRepository):
             id=model.id,
             email=model.email,
             password_hash=model.password_hash,
-            full_name=model.full_name,
+            full_name=model.name,
             role=UserRole(model.role),
-            phone=model.phone,
             status=UserStatus(model.status),
-            last_login=model.last_login,
+            last_login_at=model.last_login_at,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -152,11 +150,10 @@ class UserRepository(IUserRepository):
             id=entity.id,
             email=entity.email,
             password_hash=entity.password_hash,
-            full_name=entity.full_name,
+            name=entity.full_name,
             role=entity.role.value,
-            phone=entity.phone,
             status=entity.status.value,
-            last_login=entity.last_login,
+            last_login_at=entity.last_login_at,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
         )
