@@ -6,7 +6,7 @@ Create Date: 2026-05-12
 
 """
 from collections.abc import Sequence
-from datetime import datetime, timezone, UTC
+from datetime import datetime
 from uuid import uuid4
 
 import sqlalchemy as sa
@@ -37,35 +37,35 @@ def upgrade() -> None:
                 "id": uuid4(),
                 "key": "gas_threshold_warning",
                 "value": {"value": 200, "unit": "ppm"},
-                "updated_at": datetime.now(UTC),
+                "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },
             {
                 "id": uuid4(),
                 "key": "gas_threshold_critical",
                 "value": {"value": 500, "unit": "ppm"},
-                "updated_at": datetime.now(UTC),
+                "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },
             {
                 "id": uuid4(),
                 "key": "test_mode_timeout_minutes",
                 "value": {"value": 30},
-                "updated_at": datetime.now(UTC),
+                "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },
             {
                 "id": uuid4(),
                 "key": "alert_notification_timeout_seconds",
                 "value": {"value": 30},
-                "updated_at": datetime.now(UTC),
+                "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },
             {
                 "id": uuid4(),
                 "key": "data_retention_days",
                 "value": {"value": 180},
-                "updated_at": datetime.now(UTC),
+                "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },
         ],
