@@ -1,14 +1,16 @@
 from uuid import UUID
 
+import bcrypt
 import structlog
-from passlib.context import CryptContext
 
 from app.domain.user.entities import UserRole, UserStatus
 from app.domain.user.repository import IUserRepository
 
 logger = structlog.get_logger()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 class UpdateUser:
@@ -36,7 +38,7 @@ class UpdateUser:
             user.email = email
 
         if password:
-            user.password_hash = pwd_context.hash(password)
+            user.password_hash = _hash_password(password)
 
         if full_name:
             user.full_name = full_name

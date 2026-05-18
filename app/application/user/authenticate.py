@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
+import bcrypt
 import structlog
-from passlib.context import CryptContext
 
 from app.domain.user.entities import UserStatus
 from app.domain.user.repository import IUserRepository
@@ -9,7 +9,15 @@ from app.infrastructure.api.middleware.auth import create_access_token, create_r
 
 logger = structlog.get_logger()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except Exception:
+        return False
 
 
 class AuthenticateUser:
@@ -18,7 +26,7 @@ class AuthenticateUser:
 
     async def execute(self, email: str, password: str) -> dict:
         user = await self.user_repository.get_by_email(email)
-        
+
         if not user:
             logger.warning("authentication_failed_user_not_found", email=email)
             raise ValueError("Invalid credentials")
@@ -27,11 +35,11 @@ class AuthenticateUser:
             logger.warning("authentication_failed_user_inactive", email=email, status=user.status.value)
             raise ValueError("User account is not active")
 
-        if not pwd_context.verify(password, user.password_hash):
+        if not _verify_password(password, user.password_hash):
             logger.warning("authentication_failed_invalid_password", email=email)
             raise ValueError("Invalid credentials")
 
-        user.update_last_login()
+        user.record_login("unknown")
         await self.user_repository.update(user)
 
         access_token = create_access_token(

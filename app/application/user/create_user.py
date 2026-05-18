@@ -1,14 +1,16 @@
 from uuid import uuid4
 
+import bcrypt
 import structlog
-from passlib.context import CryptContext
 
 from app.domain.user.entities import UserRole, User, UserStatus
 from app.domain.user.repository import IUserRepository
 
 logger = structlog.get_logger()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 class CreateUser:
@@ -32,7 +34,7 @@ class CreateUser:
         except ValueError:
             raise ValueError(f"Invalid role: {role}")
 
-        password_hash = pwd_context.hash(password)
+        password_hash = _hash_password(password)
 
         user = User(
             id=uuid4(),
