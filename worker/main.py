@@ -80,12 +80,14 @@ class WorkerManager:
                 break
         checks["mqtt"] = mqtt_ok
 
-        # PostgreSQL
+        # PostgreSQL (con timeout para evitar healthcheck colgado)
         postgres_ok = False
         try:
             if worker_db.pool:
-                await worker_db.fetchrow("SELECT 1")
+                await asyncio.wait_for(worker_db.fetchrow("SELECT 1"), timeout=5.0)
                 postgres_ok = True
+        except TimeoutError:
+            logger.warning("healthcheck_postgres_timeout")
         except Exception:
             pass
         checks["postgres"] = postgres_ok

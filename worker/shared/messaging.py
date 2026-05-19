@@ -61,11 +61,22 @@ class WorkerRabbitMQClient:
         if not self.channel:
             raise RuntimeError("RabbitMQ no está conectado")
 
-        queue = await self.channel.declare_queue(queue_name, durable=True)
-        logger.info(f"Worker escuchando la cola RabbitMQ: {queue_name}")
+        # Declarar DLX + DLQ para evitar requeue infinito
+        dlx_name = "gas.dlx"
+        dlq_name = f"{queue_name}.dlq"
+        dlx = await self.channel.declare_exchange(dlx_name, aio_pika.ExchangeType.DIRECT, durable=True)
+        dlq = await self.channel.declare_queue(dlq_name, durable=True)
+        await dlq.bind(dlx, routing_key=queue_name)
+
+        queue = await self.channel.declare_queue(
+            queue_name,
+            durable=True,
+            arguments={"x-dead-letter-exchange": dlx_name, "x-dead-letter-routing-key": queue_name},
+        )
+        logger.info(f"Worker escuchando la cola RabbitMQ: {queue_name} (DLQ: {dlq_name})")
 
         async def message_handler(message: aio_pika.IncomingMessage) -> None:
-            async with message.process():
+            async with message.process(reject_on_redelivered=True):
                 try:
                     data = json.loads(message.body.decode())
                     await callback(data)
@@ -73,7 +84,7 @@ class WorkerRabbitMQClient:
                     logger.error(f"Mensaje mal formado en la cola {queue_name}. Se descartará.")
                 except Exception as e:
                     logger.error(f"Error en el worker procesando mensaje de {queue_name}: {e}", exc_info=True)
-                    raise # Relanza para que RabbitMQ haga un NACK y lo reencole
+                    raise  # NACK → DLQ si ya fue reentregado; requeue solo la primera vez
 
         await queue.consume(message_handler)
 

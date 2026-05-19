@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 
 import aio_pika
 import structlog
@@ -97,9 +97,9 @@ class DataCollectorConsumer:
             try:
                 timestamp = datetime.fromisoformat(raw_timestamp.replace("Z", "+00:00"))
             except ValueError:
-                timestamp = datetime.now(UTC)
+                timestamp = datetime.utcnow()
         else:
-            timestamp = datetime.now(UTC)
+            timestamp = datetime.utcnow()
 
         return {
             "device_id": sensor_id,

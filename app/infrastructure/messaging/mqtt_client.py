@@ -151,7 +151,7 @@ class MQTTClientWrapper:
     async def publish_valve_command(
         self, device_id: str, command: str, source: str = "remote"
     ) -> None:
-        timestamp = datetime.now(UTC).isoformat()
+        timestamp = datetime.utcnow().isoformat()
         await self.publish(
             f"gas/command/{device_id}/valve",
             {"command": command, "source": source, "timestamp": timestamp},
@@ -160,7 +160,7 @@ class MQTTClientWrapper:
     async def publish_dissipator_command(
         self, device_id: str, state: str, mode: str = "manual"
     ) -> None:
-        timestamp = datetime.now(UTC).isoformat()
+        timestamp = datetime.utcnow().isoformat()
         await self.publish(
             f"gas/command/{device_id}/dissipator",
             {"state": state, "mode": mode, "timestamp": timestamp},
