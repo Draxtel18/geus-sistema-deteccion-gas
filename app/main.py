@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic_settings import BaseSettings
@@ -35,17 +36,19 @@ settings = AppSettings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger = structlog.get_logger()
+
     await init_db()
 
     try:
         await rabbitmq_client.connect()
     except Exception as e:
-        print(f"Warning: Could not connect to RabbitMQ: {e}")
+        logger.error("rabbitmq_startup_failed", error=str(e))
 
     try:
         await mqtt_client.connect()
     except Exception as e:
-        print(f"Warning: Could not connect to MQTT: {e}")
+        logger.error("mqtt_startup_failed", error=str(e))
 
     yield
 

@@ -20,8 +20,12 @@ class MessagingSettings(BaseSettings):
     rabbitmq_vhost: str = "/"
     mqtt_broker_host: str = "localhost"
     mqtt_broker_port: int = 1883
+    mqtt_use_tls: bool = False
     mqtt_username: str | None = None
     mqtt_password: str | None = None
+    mqtt_ca_cert_path: str | None = None
+    mqtt_client_cert_path: str | None = None
+    mqtt_client_key_path: str | None = None
 
     class Config:
         env_file = ".env"
@@ -99,9 +103,18 @@ class WorkerMQTTClient:
         self.subscribed_topics: set[str] = set()
 
     async def connect(self, retries: int = 30, delay: int = 5) -> None:
+        tls_params = None
+        if settings.mqtt_use_tls and settings.mqtt_ca_cert_path:
+            tls_params = aiomqtt.TLSParameters(
+                ca_certs=settings.mqtt_ca_cert_path,
+                certfile=settings.mqtt_client_cert_path,
+                keyfile=settings.mqtt_client_key_path,
+            )
+
         client_kwargs: dict[str, Any] = {
             "hostname": settings.mqtt_broker_host,
             "port": settings.mqtt_broker_port,
+            "tls_params": tls_params,
         }
         if settings.mqtt_username:
             client_kwargs["username"] = settings.mqtt_username

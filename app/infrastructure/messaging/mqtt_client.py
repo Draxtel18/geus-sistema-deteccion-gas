@@ -15,6 +15,8 @@ class MQTTSettings(BaseSettings):
     mqtt_broker_host: str = "localhost"
     mqtt_broker_port: int = 1883
     mqtt_use_tls: bool = False
+    mqtt_username: str | None = None
+    mqtt_password: str | None = None
     mqtt_ca_cert_path: str | None = None
     mqtt_client_cert_path: str | None = None
     mqtt_client_key_path: str | None = None
@@ -40,11 +42,17 @@ class MQTTClientWrapper:
                 keyfile=settings.mqtt_client_key_path,
             )
 
-        self.client = aiomqtt.Client(
-            hostname=settings.mqtt_broker_host,
-            port=settings.mqtt_broker_port,
-            tls_params=tls_params,
-        )
+        client_kwargs: dict[str, Any] = {
+            "hostname": settings.mqtt_broker_host,
+            "port": settings.mqtt_broker_port,
+            "tls_params": tls_params,
+        }
+        if settings.mqtt_username:
+            client_kwargs["username"] = settings.mqtt_username
+        if settings.mqtt_password:
+            client_kwargs["password"] = settings.mqtt_password
+
+        self.client = aiomqtt.Client(**client_kwargs)
 
         for attempt in range(retries):
             try:
