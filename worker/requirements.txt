@@ -2,6 +2,9 @@
 aio-pika==9.4.0
 aiomqtt==2.0.1
 
+# Healthcheck HTTP server
+aiohttp==3.9.3
+
 # Validation
 pydantic==2.6.1
 pydantic-settings==2.1.0

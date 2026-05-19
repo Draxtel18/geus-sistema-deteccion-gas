@@ -20,6 +20,7 @@ class GasDetectionProcessor:
         safety_level = self._determine_safety_level(gas_ppm)
         should_alert = safety_level in ["warning", "critical"]
         should_close_valve = gas_ppm >= self.critical_threshold
+        is_safe = safety_level == "safe"
 
         analysis = {
             "device_id": device_id,
@@ -29,6 +30,7 @@ class GasDetectionProcessor:
             "safety_level": safety_level,
             "should_alert": should_alert,
             "should_close_valve": should_close_valve,
+            "is_safe": is_safe,
             "alert_severity": self._get_alert_severity(gas_ppm) if should_alert else None,
             "analyzed_at": datetime.utcnow(),
         }

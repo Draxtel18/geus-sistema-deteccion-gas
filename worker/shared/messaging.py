@@ -1,7 +1,9 @@
 import asyncio
 import json
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 import aio_pika
 import aiomqtt
@@ -18,6 +20,8 @@ class MessagingSettings(BaseSettings):
     rabbitmq_vhost: str = "/"
     mqtt_broker_host: str = "localhost"
     mqtt_broker_port: int = 1883
+    mqtt_username: str | None = None
+    mqtt_password: str | None = None
 
     class Config:
         env_file = ".env"
@@ -84,9 +88,16 @@ class WorkerMQTTClient:
         self.subscribed_topics: set[str] = set()
 
     async def connect(self, retries: int = 30, delay: int = 5) -> None:
-        self.client = aiomqtt.Client(
-            hostname=settings.mqtt_broker_host, port=settings.mqtt_broker_port
-        )
+        client_kwargs: dict[str, Any] = {
+            "hostname": settings.mqtt_broker_host,
+            "port": settings.mqtt_broker_port,
+        }
+        if settings.mqtt_username:
+            client_kwargs["username"] = settings.mqtt_username
+        if settings.mqtt_password:
+            client_kwargs["password"] = settings.mqtt_password
+
+        self.client = aiomqtt.Client(**client_kwargs)
         for attempt in range(retries):
             try:
                 logger.info(f"Worker conectando a Mosquitto MQTT (Intento {attempt + 1}/{retries})...")
@@ -107,10 +118,24 @@ class WorkerMQTTClient:
         self.subscribed_topics.add(topic)
         logger.info(f"Worker suscrito al tópico MQTT: {topic}")
 
+    @staticmethod
+    def _serialize_payload(value: Any) -> Any:
+        """Convierte datetime/UUID a strings serializables para JSON."""
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, UUID):
+            return str(value)
+        if isinstance(value, dict):
+            return {k: WorkerMQTTClient._serialize_payload(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [WorkerMQTTClient._serialize_payload(item) for item in value]
+        return value
+
     async def publish(self, topic: str, payload: dict[str, Any]) -> None:
         if not self.client:
             raise RuntimeError("MQTT no está conectado")
-        await self.client.publish(topic, payload=json.dumps(payload).encode(), qos=1)
+        serialized = self._serialize_payload(payload)
+        await self.client.publish(topic, payload=json.dumps(serialized).encode(), qos=1)
 
     async def listen(self, callback: Callable[[str, dict[str, Any]], Awaitable[None]]) -> None:
         if not self.client:

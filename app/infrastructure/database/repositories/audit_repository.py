@@ -38,7 +38,7 @@ class AuditRepository(IAuditRepository):
     ) -> list[AuditLog]:
         result = await self.session.execute(
             select(AuditLogModel)
-            .where(AuditLogModel.action_type == action_type.value)
+            .where(AuditLogModel.action == action_type.value)
             .order_by(AuditLogModel.timestamp.desc())
             .offset(skip)
             .limit(limit)
@@ -79,7 +79,7 @@ class AuditRepository(IAuditRepository):
     async def count_by_action_type(self, action_type: ActionType) -> int:
         result = await self.session.execute(
             select(func.count(AuditLogModel.id)).where(
-                AuditLogModel.action_type == action_type.value
+                AuditLogModel.action == action_type.value
             )
         )
         return result.scalar() or 0
@@ -96,7 +96,7 @@ class AuditRepository(IAuditRepository):
 
         login_result = await self.session.execute(
             select(func.count(AuditLogModel.id)).where(
-                AuditLogModel.action_type == ActionType.USER_LOGIN.value,
+                AuditLogModel.action == ActionType.USER_LOGIN.value,
                 AuditLogModel.timestamp >= start_date,
             )
         )
@@ -104,7 +104,7 @@ class AuditRepository(IAuditRepository):
 
         alert_result = await self.session.execute(
             select(func.count(AuditLogModel.id)).where(
-                AuditLogModel.action_type == ActionType.ALERT_CREATED.value,
+                AuditLogModel.action == ActionType.ALERT_CREATED.value,
                 AuditLogModel.timestamp >= start_date,
             )
         )
@@ -112,7 +112,7 @@ class AuditRepository(IAuditRepository):
 
         panic_result = await self.session.execute(
             select(func.count(AuditLogModel.id)).where(
-                AuditLogModel.action_type == ActionType.PANIC_BUTTON_PRESSED.value,
+                AuditLogModel.action == ActionType.PANIC_BUTTON_PRESSED.value,
                 AuditLogModel.timestamp >= start_date,
             )
         )
@@ -132,12 +132,12 @@ class AuditRepository(IAuditRepository):
         return AuditLog(
             id=model.id,
             user_id=model.user_id,
-            action_type=ActionType(model.action_type),
-            resource_type=model.resource_type,
-            resource_id=model.resource_id,
+            action_type=ActionType(model.action),
+            resource_type=model.sensor_id if model.sensor_id else "system",
+            resource_id=model.sensor_id,
             details=model.details or {},
-            ip_address=model.ip_address,
-            user_agent=model.user_agent,
+            ip_address=str(model.ip_origin) if model.ip_origin else None,
+            user_agent=None,
             timestamp=model.timestamp,
             created_at=model.created_at,
         )
@@ -146,12 +146,10 @@ class AuditRepository(IAuditRepository):
         return AuditLogModel(
             id=entity.id,
             user_id=entity.user_id,
-            action_type=entity.action_type.value,
-            resource_type=entity.resource_type,
-            resource_id=entity.resource_id,
+            action=entity.action_type.value,
+            sensor_id=entity.resource_id,
             details=entity.details,
-            ip_address=entity.ip_address,
-            user_agent=entity.user_agent,
+            ip_origin=entity.ip_address,
             timestamp=entity.timestamp,
             created_at=entity.created_at,
         )

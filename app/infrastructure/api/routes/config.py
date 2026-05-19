@@ -32,8 +32,8 @@ async def get_all_config(
     return [
         ConfigResponse(
             key=config.key,
-            value=config.value,
-            description=config.description,
+            value=str(config.value),
+            description=None,
         )
         for config in configs
     ]
@@ -57,8 +57,8 @@ async def get_config(
 
     return ConfigResponse(
         key=config.key,
-        value=config.value,
-        description=config.description,
+        value=str(config.value),
+        description=None,
     )
 
 
@@ -85,6 +85,6 @@ async def update_config(
 
     return ConfigResponse(
         key=config.key,
-        value=config.value,
-        description=config.description,
+        value=str(config.value),
+        description=None,
     )
