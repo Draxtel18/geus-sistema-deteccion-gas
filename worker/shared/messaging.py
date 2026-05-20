@@ -109,11 +109,20 @@ class WorkerMQTTClient:
             # Crear contexto SSL personalizado para deshabilitar verificación de hostname
             # Esto es necesario porque el certificado está emitido para api.gastio.space
             # pero nos conectamos internamente a 'mosquitto'
-            tls_context = ssl.create_default_context(cafile=settings.mqtt_ca_cert_path)
-            tls_context.load_cert_chain(
-                certfile=settings.mqtt_client_cert_path,
-                keyfile=settings.mqtt_client_key_path
-            )
+            tls_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+            
+            # Cargar el certificado CA (fullchain.pem contiene el certificado + cadena)
+            if settings.mqtt_ca_cert_path:
+                tls_context.load_verify_locations(cafile=settings.mqtt_ca_cert_path)
+            
+            # Cargar certificado y clave del cliente
+            if settings.mqtt_client_cert_path and settings.mqtt_client_key_path:
+                tls_context.load_cert_chain(
+                    certfile=settings.mqtt_client_cert_path,
+                    keyfile=settings.mqtt_client_key_path
+                )
+            
+            # Deshabilitar verificación de hostname pero mantener verificación de certificado
             tls_context.check_hostname = False
             tls_context.verify_mode = ssl.CERT_REQUIRED
 
