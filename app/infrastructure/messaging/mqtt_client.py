@@ -35,9 +35,9 @@ class MQTTClientWrapper:
 
     async def connect(self, retries: int = 30, delay: int = 2) -> None:
         tls_params = None
-        if settings.mqtt_use_tls and settings.mqtt_ca_cert_path:
+        if settings.mqtt_use_tls:
             tls_params = aiomqtt.TLSParameters(
-                ca_certs=settings.mqtt_ca_cert_path,
+                ca_certs=None,
                 certfile=settings.mqtt_client_cert_path,
                 keyfile=settings.mqtt_client_key_path,
             )
