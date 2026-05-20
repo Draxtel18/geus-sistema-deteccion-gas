@@ -104,7 +104,7 @@ class WorkerMQTTClient:
         self.subscribed_topics: set[str] = set()
 
     async def connect(self, retries: int = 30, delay: int = 5) -> None:
-        tls_params = None
+        tls_context = None
         if settings.mqtt_use_tls:
             # Crear contexto SSL personalizado para deshabilitar verificación de hostname
             # Esto es necesario porque el certificado está emitido para api.gastio.space
@@ -117,14 +117,10 @@ class WorkerMQTTClient:
             tls_context.check_hostname = False
             tls_context.verify_mode = ssl.CERT_REQUIRED
 
-            tls_params = aiomqtt.TLSParameters(
-                context=tls_context
-            )
-
         client_kwargs: dict[str, Any] = {
             "hostname": settings.mqtt_broker_host,
             "port": settings.mqtt_broker_port,
-            "tls_params": tls_params,
+            "tls_context": tls_context,
         }
         if settings.mqtt_username:
             client_kwargs["username"] = settings.mqtt_username
