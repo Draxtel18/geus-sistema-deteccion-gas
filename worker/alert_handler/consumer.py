@@ -41,7 +41,7 @@ class AlertHandlerConsumer:
             await asyncio.sleep(1)
 
     async def _setup_alert_topology(self) -> None:
-        """Declarar exchange gas.alerts y ligar colas para recibir alertas."""
+        """Declarar exchange gas.alerts y ligar colas para recibir alertas con DLX."""
         import aio_pika
 
         if not self.rabbitmq.channel:
@@ -51,15 +51,25 @@ class AlertHandlerConsumer:
             "gas.alerts", aio_pika.ExchangeType.TOPIC, durable=True
         )
 
-        critical_queue = await self.rabbitmq.channel.declare_queue(
-            "alerts.critical", durable=True
+        dlx_name = "gas.dlx"
+        dlx = await self.rabbitmq.channel.declare_exchange(
+            dlx_name, aio_pika.ExchangeType.DIRECT, durable=True
         )
-        await critical_queue.bind(exchange, routing_key="alert.critical.#")
 
-        warning_queue = await self.rabbitmq.channel.declare_queue(
-            "alerts.warning", durable=True
-        )
-        await warning_queue.bind(exchange, routing_key="alert.warning.#")
+        for queue_name, routing_key in [
+            ("alerts.critical", "alert.critical.#"),
+            ("alerts.warning", "alert.warning.#"),
+        ]:
+            dlq_name = f"{queue_name}.dlq"
+            dlq = await self.rabbitmq.channel.declare_queue(dlq_name, durable=True)
+            await dlq.bind(dlx, routing_key=queue_name)
+
+            queue = await self.rabbitmq.channel.declare_queue(
+                queue_name,
+                durable=True,
+                arguments={"x-dead-letter-exchange": dlx_name, "x-dead-letter-routing-key": queue_name},
+            )
+            await queue.bind(exchange, routing_key=routing_key)
 
         logger.info("alert_topology_configured")
 

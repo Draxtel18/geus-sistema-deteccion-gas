@@ -39,7 +39,7 @@ class GasDetectionConsumer:
             await asyncio.sleep(1)
 
     async def _setup_readings_topology(self) -> None:
-        """Declarar exchange gas.readings y ligar cola readings.analysis."""
+        """Declarar exchange gas.readings y ligar cola readings.analysis con DLX."""
         if not self.rabbitmq.channel:
             raise RuntimeError("RabbitMQ channel not available")
 
@@ -47,8 +47,19 @@ class GasDetectionConsumer:
             "gas.readings", aio_pika.ExchangeType.TOPIC, durable=True
         )
 
+        dlx_name = "gas.dlx"
+        dlx = await self.rabbitmq.channel.declare_exchange(
+            dlx_name, aio_pika.ExchangeType.DIRECT, durable=True
+        )
+        dlq = await self.rabbitmq.channel.declare_queue(
+            "readings.analysis.dlq", durable=True
+        )
+        await dlq.bind(dlx, routing_key="readings.analysis")
+
         analysis_queue = await self.rabbitmq.channel.declare_queue(
-            "readings.analysis", durable=True
+            "readings.analysis",
+            durable=True,
+            arguments={"x-dead-letter-exchange": dlx_name, "x-dead-letter-routing-key": "readings.analysis"},
         )
         await analysis_queue.bind(exchange, routing_key="sensor.reading.#")
 

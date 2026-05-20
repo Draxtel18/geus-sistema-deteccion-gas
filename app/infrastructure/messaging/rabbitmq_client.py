@@ -66,33 +66,28 @@ class RabbitMQClient:
         )
 
     async def _setup_queues(self) -> None:
-        self.queues["readings_storage"] = await self.channel.declare_queue(
-            "readings.storage", durable=True
-        )
-        await self.queues["readings_storage"].bind(
-            self.exchanges["readings"], routing_key="sensor.reading.#"
-        )
+        dlx_name = "gas.dlx"
+        dlx = await self.channel.declare_exchange(dlx_name, ExchangeType.DIRECT, durable=True)
 
-        self.queues["readings_analysis"] = await self.channel.declare_queue(
-            "readings.analysis", durable=True
-        )
-        await self.queues["readings_analysis"].bind(
-            self.exchanges["readings"], routing_key="sensor.reading.#"
-        )
+        queues_config = [
+            ("readings.storage", "readings_storage", self.exchanges["readings"], "sensor.reading.#"),
+            ("readings.analysis", "readings_analysis", self.exchanges["readings"], "sensor.reading.#"),
+            ("alerts.critical", "alerts_critical", self.exchanges["alerts"], "alert.critical.#"),
+            ("alerts.warning", "alerts_warning", self.exchanges["alerts"], "alert.warning.#"),
+        ]
 
-        self.queues["alerts_critical"] = await self.channel.declare_queue(
-            "alerts.critical", durable=True
-        )
-        await self.queues["alerts_critical"].bind(
-            self.exchanges["alerts"], routing_key="alert.critical.#"
-        )
+        for queue_name, key, exchange, routing_key in queues_config:
+            dlq_name = f"{queue_name}.dlq"
+            dlq = await self.channel.declare_queue(dlq_name, durable=True)
+            await dlq.bind(dlx, routing_key=queue_name)
 
-        self.queues["alerts_warning"] = await self.channel.declare_queue(
-            "alerts.warning", durable=True
-        )
-        await self.queues["alerts_warning"].bind(
-            self.exchanges["alerts"], routing_key="alert.warning.#"
-        )
+            queue = await self.channel.declare_queue(
+                queue_name,
+                durable=True,
+                arguments={"x-dead-letter-exchange": dlx_name, "x-dead-letter-routing-key": queue_name},
+            )
+            await queue.bind(exchange, routing_key=routing_key)
+            self.queues[key] = queue
 
     async def publish_reading(self, sensor_id: str, reading_data: dict[str, Any]) -> None:
         if not self.channel:
