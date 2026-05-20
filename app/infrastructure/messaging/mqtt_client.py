@@ -71,7 +71,7 @@ class MQTTClientWrapper:
         for attempt in range(retries):
             try:
                 logger.info(
-                    f"Conectando a Mosquitto MQTT en {settings.mqtt_broker_host}:{settings.mqtt_broker_port} (Intento {attempt + 1}/{retries})..."
+                    f"Conectando a Mosquitto MQTT en {settings.mqtt_broker_host}:{settings.mqtt_broker_port} con usuario {settings.mqtt_username} y contraseña {settings.mqtt_password} (Intento {attempt + 1}/{retries})..."
                 )
                 await self.client.__aenter__()
                 logger.info("¡Conexión MQTT establecida con éxito!")
