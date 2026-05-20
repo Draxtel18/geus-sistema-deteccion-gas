@@ -10,6 +10,14 @@ from app.infrastructure.database.repositories.sensor_repository import SensorRep
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
 
 
+class RegisterSensorRequest(BaseModel):
+    device_id: str
+    location: str
+    correction_factor: float = 1.0
+    create_valve: bool = True
+    create_dissipator: bool = True
+
+
 class SensorResponse(BaseModel):
     id: str
     device_id: str
@@ -286,3 +294,37 @@ async def list_sensors(
         )
         for sensor in sensors
     ]
+
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+async def register_sensor(
+    request: RegisterSensorRequest,
+    session: AsyncSession = Depends(get_current_session),
+):
+    from app.application.sensor.register_sensor import RegisterSensor
+    
+    repo = SensorRepository(session)
+    use_case = RegisterSensor(repo)
+    
+    try:
+        result = await use_case.execute(
+            device_id=request.device_id,
+            location=request.location,
+            correction_factor=request.correction_factor,
+            create_valve=request.create_valve,
+            create_dissipator=request.create_dissipator,
+        )
+        await session.commit()
+        return result
+    except ValueError as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register sensor: {str(e)}"
+        ) from e
