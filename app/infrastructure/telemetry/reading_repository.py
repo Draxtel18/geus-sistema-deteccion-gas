@@ -67,6 +67,8 @@ class ReadingRepository:
             |> range(start: {start.isoformat()}Z, stop: {end.isoformat()}Z)
             |> filter(fn: (r) => r["_measurement"] == "sensor_readings")
             |> filter(fn: (r) => r["device_id"] == "{device_id}")
+            |> aggregateWindow(every: 4s, fn: last, createEmpty: true)
+            |> fill(usePrevious: true)
             |> limit(n: {limit})
         '''
 
