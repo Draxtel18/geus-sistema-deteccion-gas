@@ -13,6 +13,7 @@ from pydantic_settings import BaseSettings
 
 logger = structlog.get_logger()
 
+
 class MessagingSettings(BaseSettings):
     rabbitmq_host: str = "localhost"
     rabbitmq_port: int = 5672
@@ -69,7 +70,9 @@ class WorkerRabbitMQClient:
         # Declarar DLX + DLQ para evitar requeue infinito
         dlx_name = "gas.dlx"
         dlq_name = f"{queue_name}.dlq"
-        dlx = await self.channel.declare_exchange(dlx_name, aio_pika.ExchangeType.DIRECT, durable=True)
+        dlx = await self.channel.declare_exchange(
+            dlx_name, aio_pika.ExchangeType.DIRECT, durable=True
+        )
         dlq = await self.channel.declare_queue(dlq_name, durable=True)
         await dlq.bind(dlx, routing_key=queue_name)
 
@@ -88,7 +91,9 @@ class WorkerRabbitMQClient:
                 except json.JSONDecodeError:
                     logger.error(f"Mensaje mal formado en la cola {queue_name}. Se descartará.")
                 except Exception as e:
-                    logger.error(f"Error en el worker procesando mensaje de {queue_name}: {e}", exc_info=True)
+                    logger.error(
+                        f"Error en el worker procesando mensaje de {queue_name}: {e}", exc_info=True
+                    )
                     raise  # NACK → DLQ si ya fue reentregado; requeue solo la primera vez
 
         await queue.consume(message_handler)
@@ -110,21 +115,20 @@ class WorkerMQTTClient:
             # Esto es necesario porque el certificado está emitido para api.gastio.space
             # pero nos conectamos internamente a 'mosquitto'
             tls_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-            
+
             # Cargar el certificado CA (fullchain.pem contiene el certificado + cadena)
             if settings.mqtt_ca_cert_path:
                 tls_context.load_verify_locations(cafile=settings.mqtt_ca_cert_path)
-            
+
             # Cargar certificado y clave del cliente
             if settings.mqtt_client_cert_path and settings.mqtt_client_key_path:
                 tls_context.load_cert_chain(
-                    certfile=settings.mqtt_client_cert_path,
-                    keyfile=settings.mqtt_client_key_path
+                    certfile=settings.mqtt_client_cert_path, keyfile=settings.mqtt_client_key_path
                 )
-            
+
             # Deshabilitar verificación de hostname pero mantener verificación de certificado
-            tls_context.check_hostname = False
             tls_context.verify_mode = ssl.CERT_REQUIRED
+            tls_context.check_hostname = False
 
         client_kwargs: dict[str, Any] = {
             "hostname": settings.mqtt_broker_host,
@@ -139,7 +143,9 @@ class WorkerMQTTClient:
         self.client = aiomqtt.Client(**client_kwargs)
         for attempt in range(retries):
             try:
-                logger.info(f"Worker conectando a Mosquitto MQTT (Intento {attempt + 1}/{retries})...")
+                logger.info(
+                    f"Worker conectando a Mosquitto MQTT (Intento {attempt + 1}/{retries})..."
+                )
                 await self.client.__aenter__()
                 logger.info("¡Worker conectado a MQTT con éxito!")
                 return
@@ -191,7 +197,10 @@ class WorkerMQTTClient:
                     except json.JSONDecodeError:
                         logger.error(f"Payload MQTT malformado recibido en {topic}. Ignorando.")
                     except Exception as e:
-                        logger.error(f"Error en el worker ejecutando el callback para {topic}: {e}", exc_info=True)
+                        logger.error(
+                            f"Error en el worker ejecutando el callback para {topic}: {e}",
+                            exc_info=True,
+                        )
 
             except aiomqtt.MqttError as e:
                 logger.error(f"Worker desconectado de MQTT inesperadamente: {e}")
