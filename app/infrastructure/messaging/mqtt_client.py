@@ -37,7 +37,7 @@ class MQTTClientWrapper:
         tls_params = None
         if settings.mqtt_use_tls:
             tls_params = aiomqtt.TLSParameters(
-                ca_certs=None,
+                ca_certs=settings.mqtt_ca_cert_path,
                 certfile=settings.mqtt_client_cert_path,
                 keyfile=settings.mqtt_client_key_path,
             )
