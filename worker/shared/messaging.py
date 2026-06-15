@@ -121,6 +121,7 @@ class WorkerMQTTClient:
                 )
 
             tls_context.verify_mode = ssl.CERT_REQUIRED
+            tls_context.check_hostname = False
 
         client_kwargs: dict[str, Any] = {
             "hostname": settings.mqtt_broker_host,
