@@ -21,7 +21,6 @@ class LogAction:
         resource_id: UUID | None = None,
         details: dict | None = None,
         ip_address: str | None = None,
-        user_agent: str | None = None,
     ) -> AuditLog:
         audit_log = AuditLog(
             id=uuid4(),
@@ -31,7 +30,6 @@ class LogAction:
             resource_id=resource_id,
             details=details or {},
             ip_address=ip_address,
-            user_agent=user_agent,
             timestamp=datetime.utcnow(),
             created_at=datetime.utcnow(),
         )

@@ -24,7 +24,6 @@ class UpdateUser:
         password: str | None = None,
         full_name: str | None = None,
         role: str | None = None,
-        phone: str | None = None,
         status: str | None = None,
     ) -> dict:
         user = await self.user_repository.get_by_id(user_id)
@@ -49,9 +48,6 @@ class UpdateUser:
             except ValueError:
                 raise ValueError(f"Invalid role: {role}")
 
-        if phone is not None:
-            user.phone = phone
-
         if status:
             try:
                 user.status = UserStatus(status)
@@ -72,7 +68,6 @@ class UpdateUser:
             "email": updated_user.email,
             "full_name": updated_user.full_name,
             "role": updated_user.role.value,
-            "phone": updated_user.phone,
             "status": updated_user.status.value,
             "updated_at": updated_user.updated_at.isoformat(),
         }

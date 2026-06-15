@@ -25,11 +25,9 @@ def audit_action(action_type: ActionType, resource_type: str):
 
             user_id = None
             ip_address = None
-            user_agent = None
 
             if request:
                 ip_address = request.client.host if request.client else None
-                user_agent = request.headers.get("user-agent")
 
                 if hasattr(request.state, "user"):
                     user_id = request.state.user.user_id
@@ -49,7 +47,6 @@ def audit_action(action_type: ActionType, resource_type: str):
                             resource_id=resource_id,
                             details={"endpoint": str(request.url) if request else None},
                             ip_address=ip_address,
-                            user_agent=user_agent,
                         )
                         await session.commit()
                     except Exception:

@@ -23,7 +23,6 @@ class CreateUser:
         password: str,
         full_name: str,
         role: str,
-        phone: str | None = None,
     ) -> dict:
         existing_user = await self.user_repository.get_by_email(email)
         if existing_user:
@@ -42,7 +41,6 @@ class CreateUser:
             password_hash=password_hash,
             full_name=full_name,
             role=user_role,
-            phone=phone,
             status=UserStatus.ACTIVE,
         )
 
@@ -60,7 +58,6 @@ class CreateUser:
             "email": saved_user.email,
             "full_name": saved_user.full_name,
             "role": saved_user.role.value,
-            "phone": saved_user.phone,
             "status": saved_user.status.value,
             "created_at": saved_user.created_at.isoformat(),
         }

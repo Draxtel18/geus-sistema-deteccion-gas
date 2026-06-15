@@ -23,7 +23,6 @@ class User:
     full_name: str
     role: UserRole
     status: UserStatus
-    phone: str | None = None
     notifications_enabled: bool = True
     notification_devices: list[str] = field(default_factory=list)
     last_login_at: datetime | None = None

@@ -137,7 +137,6 @@ class AuditRepository(IAuditRepository):
             resource_id=model.sensor_id,
             details=model.details or {},
             ip_address=str(model.ip_origin) if model.ip_origin else None,
-            user_agent=None,
             timestamp=model.timestamp,
             created_at=model.created_at,
         )

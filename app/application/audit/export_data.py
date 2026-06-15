@@ -55,7 +55,6 @@ class ExportData:
             "Resource ID",
             "Details",
             "IP Address",
-            "User Agent",
             "Timestamp",
         ])
 
@@ -68,7 +67,6 @@ class ExportData:
                 str(log.resource_id) if log.resource_id else "",
                 str(log.details),
                 log.ip_address or "",
-                log.user_agent or "",
                 log.timestamp.isoformat(),
             ])
 

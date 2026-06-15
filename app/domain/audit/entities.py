@@ -35,7 +35,6 @@ class AuditLog:
     resource_id: UUID | None
     details: dict
     ip_address: str | None
-    user_agent: str | None
     timestamp: datetime
     created_at: datetime
 
@@ -48,7 +47,6 @@ class AuditLog:
             "resource_id": str(self.resource_id) if self.resource_id else None,
             "details": self.details,
             "ip_address": self.ip_address,
-            "user_agent": self.user_agent,
             "timestamp": self.timestamp.isoformat(),
             "created_at": self.created_at.isoformat(),
         }

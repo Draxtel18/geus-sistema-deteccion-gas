@@ -306,7 +306,6 @@ class AlertStore:
         self,
         device_id: str,
         location: str = "Unknown",
-        sensor_type: str = "MQ2",
     ) -> UUID | None:
         sensor = await self._find_sensor_by_device_id(device_id)
         if sensor:

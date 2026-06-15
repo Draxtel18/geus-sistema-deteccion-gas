@@ -22,7 +22,6 @@ class CreateUserRequest(BaseModel):
     password: str
     full_name: str
     role: str
-    phone: str | None = None
 
 
 class UpdateUserRequest(BaseModel):
@@ -30,7 +29,6 @@ class UpdateUserRequest(BaseModel):
     password: str | None = None
     full_name: str | None = None
     role: str | None = None
-    phone: str | None = None
     status: str | None = None
 
 
@@ -54,7 +52,6 @@ async def create_user(
             password=create_request.password,
             full_name=create_request.full_name,
             role=create_request.role,
-            phone=create_request.phone,
         )
         return result
     except ValueError as e:
@@ -105,8 +102,7 @@ async def get_user(
         "email": user.email,
         "full_name": user.full_name,
         "role": user.role.value,
-        "phone": user.phone,
-        "status": user.status.value,
+            "status": user.status.value,
         "last_login": user.last_login.isoformat() if user.last_login else None,
         "created_at": user.created_at.isoformat(),
         "updated_at": user.updated_at.isoformat(),
@@ -131,7 +127,6 @@ async def update_user(
             password=update_request.password,
             full_name=update_request.full_name,
             role=update_request.role,
-            phone=update_request.phone,
             status=update_request.status,
         )
         return result
