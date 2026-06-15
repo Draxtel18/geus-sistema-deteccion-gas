@@ -67,18 +67,18 @@ class InfluxDBClientWrapper:
 
         result = self.query_api.query(org=self.org, query=query)
 
-        if not result or not result[0].records:
+        if not result:
             return None
 
-        records = result[0].records
         reading: dict[str, Any] = {"sensor_id": sensor_id, "timestamp": None}
 
-        for record in records:
-            field = record.get_field()
-            value = record.get_value()
-            reading[field] = value
-            if reading["timestamp"] is None:
-                reading["timestamp"] = record.get_time()
+        for table in result:
+            for record in table.records:
+                field = record.get_field()
+                value = record.get_value()
+                reading[field] = value
+                if reading["timestamp"] is None:
+                    reading["timestamp"] = record.get_time()
 
         return reading
 

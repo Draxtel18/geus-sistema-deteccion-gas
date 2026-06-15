@@ -53,6 +53,7 @@ class Sensor:
     test_mode_expires_at: datetime | None = None
     correction_factor: float = 1.0
     last_reading_at: datetime | None = None
+    last_gas_ppm: float | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 
@@ -86,8 +87,10 @@ class Sensor:
             self.wifi_signal = wifi_signal
         self.updated_at = datetime.utcnow()
 
-    def record_reading(self) -> None:
+    def record_reading(self, gas_ppm: float | None = None) -> None:
         self.last_reading_at = datetime.utcnow()
+        if gas_ppm is not None:
+            self.last_gas_ppm = gas_ppm
         self.updated_at = datetime.utcnow()
 
 

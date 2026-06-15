@@ -75,6 +75,7 @@ class SensorRepository(ISensorRepository):
             model.test_mode_expires_at = sensor.test_mode_expires_at
             model.correction_factor = sensor.correction_factor
             model.last_reading_at = sensor.last_reading_at
+            model.last_gas_ppm = sensor.last_gas_ppm
             model.updated_at = sensor.updated_at
             
             await self.session.flush()
@@ -176,6 +177,7 @@ class SensorRepository(ISensorRepository):
             test_mode_expires_at=model.test_mode_expires_at,
             correction_factor=model.correction_factor,
             last_reading_at=model.last_reading_at,
+            last_gas_ppm=model.last_gas_ppm,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -193,6 +195,7 @@ class SensorRepository(ISensorRepository):
             test_mode_expires_at=entity.test_mode_expires_at,
             correction_factor=entity.correction_factor,
             last_reading_at=entity.last_reading_at,
+            last_gas_ppm=entity.last_gas_ppm,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
         )

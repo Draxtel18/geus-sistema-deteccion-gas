@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
 from jose import JWTError, jwt
@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from app.domain.user.services import Permission, permission_checker
+from app.infrastructure.database.connection import AsyncSessionLocal
+from app.infrastructure.database.repositories.user_repository import UserRepository
 
 
 class AuthSettings(BaseSettings):
@@ -67,6 +69,7 @@ def create_refresh_token(data: dict) -> str:
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
 ) -> TokenData:
     credentials_exception = HTTPException(
@@ -85,6 +88,8 @@ async def get_current_user(
         token_data = TokenData(user_id=UUID(user_id), email=email, role=role)
     except (JWTError, ValueError):
         raise credentials_exception
+
+    request.state.user = token_data
     return token_data
 
 
@@ -118,7 +123,7 @@ def require_permission(required_permission: Permission):
         current_user: Annotated[TokenData, Depends(get_current_user)]
     ) -> TokenData:
         from app.domain.user.entities import UserRole
-        
+
         user_role = UserRole(current_user.role)
         if not permission_checker.has_permission(user_role, required_permission):
             raise HTTPException(
@@ -127,3 +132,24 @@ def require_permission(required_permission: Permission):
             )
         return current_user
     return permission_checker_dep
+
+
+async def require_sensor_access(
+    sensor_id: UUID,
+    current_user: Annotated[TokenData, Depends(get_current_user)],
+) -> TokenData:
+    from app.domain.user.entities import UserRole
+
+    if current_user.role == UserRole.ADMIN.value:
+        return current_user
+
+    async with AsyncSessionLocal() as session:
+        repo = UserRepository(session)
+        assigned = await repo.get_assigned_sensors(current_user.user_id)
+        if sensor_id in assigned:
+            return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied to this sensor"
+    )

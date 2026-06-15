@@ -55,15 +55,7 @@ class GasLevelAnalyzer:
     def should_resolve_alert(
         self, current_gas_ppm: float, alert_severity: str, alert_age_minutes: int
     ) -> bool:
-        if alert_severity == "critical":
-            return False
-
-        if alert_severity == "warning":
-            if current_gas_ppm < self.protocol.thresholds.warning_ppm:
-                if alert_age_minutes >= 5:
-                    return True
-
-        return False
+        return current_gas_ppm < self.protocol.thresholds.warning_ppm
 
     def calculate_trend(
         self, readings: list[tuple[datetime, float]], window_minutes: int = 5

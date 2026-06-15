@@ -5,7 +5,7 @@ import structlog
 from app.domain.sensor.entities import ActivationMode
 from app.domain.sensor.repository import ISensorRepository
 from app.domain.sensor.services import SensorStateManager
-from app.domain.shared.exceptions import DissipatorLockedError, SensorNotFoundError
+from app.domain.shared.exceptions import SensorNotFoundError
 
 logger = structlog.get_logger()
 
@@ -36,8 +36,8 @@ class ControlDissipator:
             )
         elif command == "off":
             if dissipator.locked_by_alert:
-                raise DissipatorLockedError()
-            
+                dissipator.unlock()
+
             state_manager.deactivate_dissipator(user_id)
             logger.info(
                 "dissipator_deactivated_manually",

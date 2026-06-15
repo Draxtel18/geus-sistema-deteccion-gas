@@ -26,6 +26,7 @@ class UserModel(Base):
 
     sensor_assignments = relationship("UserSensorAssignmentModel", back_populates="user", foreign_keys="[UserSensorAssignmentModel.user_id]", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLogModel", back_populates="user", foreign_keys="[AuditLogModel.user_id]")
+    push_tokens = relationship("PushTokenModel", back_populates="user", cascade="all, delete-orphan")
 
 
 class UserSensorAssignmentModel(Base):

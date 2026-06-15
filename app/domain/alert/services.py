@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 from uuid import UUID
 
 import structlog
@@ -56,15 +55,7 @@ class AlertManager:
     async def should_auto_resolve(
         self, alert: Alert, current_gas_ppm: float
     ) -> bool:
-        if alert.severity.value == "critical":
+        if alert.status not in (AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED):
             return False
 
-        if alert.status != AlertStatus.ACTIVE:
-            return False
-
-        if current_gas_ppm < 200:
-            alert_age = datetime.utcnow() - alert.triggered_at
-            if alert_age >= timedelta(minutes=5):
-                return True
-
-        return False
+        return current_gas_ppm < 200

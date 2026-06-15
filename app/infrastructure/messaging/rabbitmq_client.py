@@ -146,16 +146,15 @@ class RabbitMQClient:
             raise ValueError(f"Cola {queue_name} no encontrada")
 
         async def message_handler(message: aio_pika.IncomingMessage) -> None:
-            async with message.process(): # Esto maneja el ACK/NACK automáticamente
+            async with message.process():
                 try:
                     data = json.loads(message.body.decode())
                     await callback(data)
                 except json.JSONDecodeError:
                     logger.error(f"Mensaje mal formado en la cola {queue_name}. Se descartará.")
-                    # Al no relanzar el error, message.process() hace un ACK y elimina el mensaje basura
                 except Exception as e:
                     logger.error(f"Error procesando el mensaje en {queue_name: {e}}")
-                    raise # Relanzamos el error para que aio_pika haga un NACK y el mensaje regrese a la cola
+                    raise
 
         await queue.consume(message_handler)
 

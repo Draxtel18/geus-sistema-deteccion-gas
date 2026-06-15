@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -5,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.api.dependencies import get_current_session
+from app.infrastructure.api.middleware.auth import get_current_user, require_sensor_access, TokenData
 from app.infrastructure.database.repositories.sensor_repository import SensorRepository
 
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
@@ -70,6 +72,7 @@ class SensorDetailResponse(BaseModel):
 @router.get("/{sensor_id}/health")
 async def get_sensor_health(
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = SensorRepository(session)
@@ -134,6 +137,7 @@ async def get_sensor_health(
 @router.get("/{sensor_id}", response_model=SensorDetailResponse)
 async def get_sensor(
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = SensorRepository(session)
@@ -196,6 +200,7 @@ async def get_sensor(
 @router.get("/{sensor_id}/current")
 async def get_current_reading(
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     session: AsyncSession = Depends(get_current_session),
 ):
     from app.application.sensor.get_current_reading import GetCurrentReading
@@ -213,9 +218,31 @@ async def get_current_reading(
         )
 
 
+@router.get("/{sensor_id}/latest-gas")
+async def get_latest_gas_reading(
+    sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
+    session: AsyncSession = Depends(get_current_session),
+):
+    from app.application.sensor.get_latest_gas_reading import GetLatestGasReading
+
+    repo = SensorRepository(session)
+    use_case = GetLatestGasReading(repo)
+
+    try:
+        result = await use_case.execute(sensor_id)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
 @router.get("/{sensor_id}/readings")
 async def get_readings_history(
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     start: str | None = None,
     end: str | None = None,
     limit: int = 1000,
@@ -223,13 +250,13 @@ async def get_readings_history(
 ):
     from app.application.sensor.get_readings_history import GetReadingsHistory
     from datetime import datetime
-    
+
     repo = SensorRepository(session)
     use_case = GetReadingsHistory(repo)
-    
+
     start_dt = datetime.fromisoformat(start) if start else None
     end_dt = datetime.fromisoformat(end) if end else None
-    
+
     try:
         result = await use_case.execute(sensor_id, start_dt, end_dt, limit)
         return result
@@ -243,6 +270,7 @@ async def get_readings_history(
 @router.get("/{sensor_id}/stats")
 async def get_sensor_stats(
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     period: str = "24h",
     session: AsyncSession = Depends(get_current_session),
 ):

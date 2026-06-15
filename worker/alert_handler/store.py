@@ -1,5 +1,3 @@
-"""Persistencia de alertas en PostgreSQL desde el worker."""
-
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -11,18 +9,15 @@ logger = structlog.get_logger()
 
 
 class AlertStore:
-    """Guarda alertas en PostgreSQL buscando primero el sensor por device_id."""
 
     async def _find_active_alert(self, sensor_id: UUID) -> dict | None:
-        """Devuelve la alerta activa del sensor, o None si no hay."""
         row = await worker_db.fetchrow(
-            "SELECT id, severity, gas_level_ppm, triggered_at FROM alerts WHERE sensor_id = $1 AND status = 'active' LIMIT 1",
+            "SELECT id, severity, gas_level_ppm, triggered_at FROM alerts WHERE sensor_id = $1 AND status IN ('active', 'acknowledged') ORDER BY triggered_at DESC LIMIT 1",
             sensor_id,
         )
         return dict(row) if row else None
 
     async def _resolve_alert(self, alert_id: UUID) -> bool:
-        """Marca una alerta específica como resuelta."""
         try:
             now = datetime.utcnow()
             if now.tzinfo is not None:
@@ -30,7 +25,7 @@ class AlertStore:
             await worker_db.execute(
                 """
                 UPDATE alerts
-                SET status = 'resolved', resolved_at = $1, auto_resolved = true
+                SET status = 'resolved', resolved_at = $1, resolved_by = NULL, auto_resolved = true
                 WHERE id = $2
                 """,
                 now,
@@ -41,7 +36,6 @@ class AlertStore:
             return False
 
     async def resolve_active_alerts(self, device_id: str) -> bool:
-        """Resuelve todas las alertas activas del sensor cuando el gas vuelve a niveles seguros."""
         try:
             sensor = await self._find_sensor_by_device_id(device_id)
             if not sensor:
@@ -55,14 +49,24 @@ class AlertStore:
             result = await worker_db.execute(
                 """
                 UPDATE alerts
-                SET status = 'resolved', resolved_at = $1, auto_resolved = true
-                WHERE sensor_id = $2 AND status = 'active'
+                SET status = 'resolved', resolved_at = $1, resolved_by = NULL, auto_resolved = true
+                WHERE sensor_id = $2 AND status IN ('active', 'acknowledged')
                 """,
                 now,
                 sensor_id,
             )
 
-            # asyncpg devuelve una string como 'UPDATE 1' en result
+            await worker_db.execute(
+                """
+                UPDATE dissipators
+                SET locked_by_alert = false,
+                    updated_at = $1
+                WHERE sensor_id = $2 AND locked_by_alert = true
+                """,
+                now,
+                sensor_id,
+            )
+
             affected = int(result.split()[-1]) if isinstance(result, str) and result.startswith("UPDATE") else 0
             if affected > 0:
                 logger.info(
@@ -89,7 +93,7 @@ class AlertStore:
         gas_level_ppm: float,
         triggered_at: datetime | None = None,
     ) -> bool:
-        """Busca el sensor por device_id y crea la alerta si no hay una activa."""
+
         try:
             sensor = await self._find_sensor_by_device_id(device_id)
             if not sensor:
@@ -103,11 +107,9 @@ class AlertStore:
 
             sensor_id = sensor["id"]
 
-            # Evitar alertas duplicadas y permitir upgrade de severidad
             existing = await self._find_active_alert(sensor_id)
             if existing:
                 if severity == "critical" and existing["severity"] == "warning":
-                    # Upgrade: resolver warning, crear critical
                     await self._resolve_alert(existing["id"])
                     logger.info(
                         "alert_severity_upgraded",
@@ -129,7 +131,6 @@ class AlertStore:
 
             alert_id = uuid4()
             now = triggered_at or datetime.utcnow()
-            # asyncpg requiere datetime offset-naive para columnas DateTime
             if now.tzinfo is not None:
                 now = now.replace(tzinfo=None)
 
@@ -147,7 +148,7 @@ class AlertStore:
                 "active",
                 now,
                 False,
-                "[]",
+                [],
                 now,
             )
 
@@ -179,20 +180,140 @@ class AlertStore:
             return dict(row)
         return None
 
+    async def get_notification_targets(self, device_id: str) -> tuple[list[str], list[str]]:
+        emails: list[str] = []
+        tokens: list[str] = []
+
+        rows = await worker_db.fetch(
+            """
+            SELECT u.email, pt.token
+            FROM users u
+            LEFT JOIN push_tokens pt ON pt.user_id = u.id AND pt.is_active = true
+            INNER JOIN user_sensor_assignments usa ON usa.user_id = u.id
+            INNER JOIN sensors s ON s.id = usa.sensor_id
+            WHERE s.device_id = $1
+              AND u.notifications_enabled = true
+            """,
+            device_id,
+        )
+
+        for row in rows:
+            if row["email"]:
+                emails.append(row["email"])
+            if row["token"]:
+                tokens.append(row["token"])
+
+        return list(set(emails)), list(set(tokens))
+
+    async def get_sensor_snapshot(self, device_id: str) -> dict | None:
+        row = await worker_db.fetchrow(
+            """
+            SELECT s.id AS sensor_id,
+                   s.device_id,
+                   s.location,
+                   s.status AS sensor_status,
+                   s.mqtt_connected,
+                   v.state AS valve_state,
+                   d.state AS dissipator_state,
+                   d.locked_by_alert
+            FROM sensors s
+            LEFT JOIN valves v ON v.sensor_id = s.id
+            LEFT JOIN dissipators d ON d.sensor_id = s.id
+            WHERE s.device_id = $1
+            """,
+            device_id,
+        )
+        return dict(row) if row else None
+
+    async def update_valve_snapshot(self, device_id: str, state: str, source: str) -> bool:
+        try:
+            sensor = await self._find_sensor_by_device_id(device_id)
+            if not sensor:
+                return False
+
+            now = datetime.utcnow()
+            if now.tzinfo is not None:
+                now = now.replace(tzinfo=None)
+
+            await worker_db.execute(
+                """
+                UPDATE valves
+                SET state = $1,
+                    last_command_source = $2,
+                    last_state_change = $3,
+                    updated_at = $3
+                WHERE sensor_id = $4
+                """,
+                state,
+                source,
+                now,
+                sensor["id"],
+            )
+            return True
+        except Exception as e:
+            logger.error(
+                "failed_to_update_valve_snapshot",
+                device_id=device_id,
+                state=state,
+                error=str(e),
+            )
+            return False
+
+    async def update_dissipator_snapshot(
+        self,
+        device_id: str,
+        state: str,
+        activation_mode: str,
+        locked_by_alert: bool,
+    ) -> bool:
+        try:
+            sensor = await self._find_sensor_by_device_id(device_id)
+            if not sensor:
+                return False
+
+            now = datetime.utcnow()
+            if now.tzinfo is not None:
+                now = now.replace(tzinfo=None)
+
+            await worker_db.execute(
+                """
+                UPDATE dissipators
+                SET state = $1,
+                    activation_mode = $2,
+                    locked_by_alert = $3,
+                    last_state_change = $4,
+                    updated_at = $4
+                WHERE sensor_id = $5
+                """,
+                state,
+                activation_mode,
+                locked_by_alert,
+                now,
+                sensor["id"],
+            )
+            return True
+        except Exception as e:
+            logger.error(
+                "failed_to_update_dissipator_snapshot",
+                device_id=device_id,
+                state=state,
+                activation_mode=activation_mode,
+                error=str(e),
+            )
+            return False
+
     async def ensure_sensor_exists(
         self,
         device_id: str,
         location: str = "Unknown",
         sensor_type: str = "MQ2",
     ) -> UUID | None:
-        """Crea el sensor si no existe."""
         sensor = await self._find_sensor_by_device_id(device_id)
         if sensor:
             return sensor["id"]
 
         sensor_id = uuid4()
         now = datetime.utcnow()
-        # asyncpg requiere datetime offset-naive para columnas DateTime
         if now.tzinfo is not None:
             now = now.replace(tzinfo=None)
         await worker_db.execute(
@@ -206,7 +327,7 @@ class AlertStore:
             sensor_id,
             device_id,
             location,
-            "active",
+            "online",
             None,
             True,
             0,

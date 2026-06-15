@@ -29,7 +29,6 @@ class AlertHandlerConsumer:
         await self.mqtt.connect()
         self.running = True
 
-        # Configurar topologia: declarar exchange y ligar colas
         await self._setup_alert_topology()
 
         await self.rabbitmq.consume_queue("alerts.critical", self.handle_critical_alert)
@@ -41,7 +40,6 @@ class AlertHandlerConsumer:
             await asyncio.sleep(1)
 
     async def _setup_alert_topology(self) -> None:
-        """Declarar exchange gas.alerts y ligar colas para recibir alertas con DLX."""
         import aio_pika
 
         if not self.rabbitmq.channel:
@@ -85,10 +83,8 @@ class AlertHandlerConsumer:
             logger.warning("invalid_alert_data", data=data)
             return
 
-        # Guardar alerta en PostgreSQL (con manejo de errores para evitar requeue infinito)
         saved = False
         try:
-            # Asegurar que el sensor existe (auto-registrar si es necesario)
             await self.alert_store.ensure_sensor_exists(device_id)
 
             triggered_at = None
@@ -131,15 +127,31 @@ class AlertHandlerConsumer:
 
         if actions["should_close_valve"]:
             await self.send_valve_command(device_id, "close")
+            await self.alert_store.update_valve_snapshot(device_id, "closed", "remote")
 
         if actions["should_activate_dissipator"]:
             await self.send_dissipator_command(device_id, "on")
+            await self.alert_store.update_dissipator_snapshot(
+                device_id=device_id,
+                state="on",
+                activation_mode="automatic",
+                locked_by_alert=True,
+            )
 
+        emails, tokens = await self._resolve_notification_targets(device_id, severity)
+        notification_data = await self._build_notification_data(
+            device_id=device_id,
+            severity=severity,
+            gas_level_ppm=gas_level_ppm,
+            event="alert",
+        )
         await self.notifier.send_notification(
             device_id=device_id,
             severity=severity,
             gas_level_ppm=gas_level_ppm,
-            recipients=["admin@example.com"],
+            recipients=emails,
+            push_tokens=tokens,
+            data=notification_data,
         )
 
         logger.info(
@@ -162,10 +174,8 @@ class AlertHandlerConsumer:
             logger.warning("invalid_alert_data", data=data)
             return
 
-        # Guardar alerta en PostgreSQL (con manejo de errores para evitar requeue infinito)
         saved = False
         try:
-            # Asegurar que el sensor existe
             await self.alert_store.ensure_sensor_exists(device_id)
 
             triggered_at = None
@@ -204,14 +214,69 @@ class AlertHandlerConsumer:
                 reason="safety_actions_always_execute",
             )
 
+        emails, tokens = await self._resolve_notification_targets(device_id, severity)
+        notification_data = await self._build_notification_data(
+            device_id=device_id,
+            severity=severity,
+            gas_level_ppm=gas_level_ppm,
+            event="alert",
+        )
         await self.notifier.send_notification(
             device_id=device_id,
             severity=severity,
             gas_level_ppm=gas_level_ppm,
-            recipients=["operator@example.com"],
+            recipients=emails,
+            push_tokens=tokens,
+            data=notification_data,
         )
 
         logger.info("warning_alert_handled", device_id=device_id, saved_to_db=saved)
+
+    async def _resolve_notification_targets(
+        self, device_id: str, severity: str
+    ) -> tuple[list[str], list[str]]:
+        emails: list[str] = []
+        tokens: list[str] = []
+
+        try:
+            emails, tokens = await self.alert_store.get_notification_targets(device_id)
+        except Exception as e:
+            logger.error(
+                "failed_to_resolve_notification_targets",
+                device_id=device_id,
+                error=str(e),
+            )
+
+        if not emails:
+            if severity == "critical":
+                emails = ["admin@example.com"]
+            else:
+                emails = ["operator@example.com"]
+
+        return list(set(emails)), list(set(tokens))
+
+    async def _build_notification_data(
+        self,
+        device_id: str,
+        severity: str,
+        gas_level_ppm: float,
+        event: str,
+    ) -> dict:
+        snapshot = await self.alert_store.get_sensor_snapshot(device_id) or {}
+        sensor_id = snapshot.get("sensor_id")
+
+        return {
+            "event": event,
+            "sensor_id": str(sensor_id) if sensor_id else None,
+            "device_id": device_id,
+            "severity": severity,
+            "gas_level_ppm": gas_level_ppm,
+            "location": snapshot.get("location"),
+            "sensor_status": snapshot.get("sensor_status"),
+            "mqtt_connected": snapshot.get("mqtt_connected"),
+            "valve_state": snapshot.get("valve_state"),
+            "dissipator_state": snapshot.get("dissipator_state"),
+        }
 
     async def send_valve_command(self, device_id: str, command: str) -> None:
         topic = f"gas/command/{device_id}/valve"

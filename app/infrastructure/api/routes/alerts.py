@@ -1,12 +1,17 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.alert.entities import AlertStatus
+from app.domain.audit.entities import ActionType
 from app.infrastructure.api.dependencies import get_current_session
+from app.infrastructure.api.middleware.audit import audit_action
+from app.infrastructure.api.middleware.auth import get_current_user, TokenData
 from app.infrastructure.database.repositories.alert_repository import AlertRepository
+from app.infrastructure.database.repositories.user_repository import UserRepository
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
@@ -36,12 +41,25 @@ async def list_alerts(
     sensor_id: UUID | None = Query(None, description="Filter by sensor ID"),
     skip: int = 0,
     limit: int = 100,
+    current_user: Annotated[TokenData, Depends(get_current_user)] = None,
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = AlertRepository(session)
-    
-    if status_filter == "active":
-        alerts = await repo.list_active_alerts(skip=skip, limit=limit)
+
+    allowed_sensor_ids: list[UUID] | None = None
+    if current_user and current_user.role == "operator":
+        user_repo = UserRepository(session)
+        allowed_sensor_ids = await user_repo.get_assigned_sensors(current_user.user_id)
+        if not allowed_sensor_ids:
+            return []
+
+    if sensor_id:
+        if allowed_sensor_ids and sensor_id not in allowed_sensor_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this sensor's alerts"
+            )
+        alerts = await repo.list_by_sensor(sensor_id, skip=skip, limit=limit)
     elif status_filter:
         try:
             alert_status = AlertStatus(status_filter)
@@ -50,12 +68,13 @@ async def list_alerts(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status: {status_filter}"
-            )
-    elif sensor_id:
-        alerts = await repo.list_by_sensor(sensor_id, skip=skip, limit=limit)
+            ) from None
     else:
         alerts = await repo.list_active_alerts(skip=skip, limit=limit)
-    
+
+    if allowed_sensor_ids:
+        alerts = [a for a in alerts if a.sensor_id in allowed_sensor_ids]
+
     return [
         AlertResponse(
             id=str(alert.id),
@@ -106,42 +125,68 @@ async def get_alert(
 
 
 @router.post("/{alert_id}/acknowledge")
+@audit_action(action_type=ActionType.ALERT_ACKNOWLEDGED, resource_type="alert")
 async def acknowledge_alert(
+    request: Request,
     alert_id: UUID,
+    current_user: Annotated[TokenData, Depends(get_current_user)],
     session: AsyncSession = Depends(get_current_session),
 ):
     from app.application.alert.acknowledge_alert import AcknowledgeAlert
-    from uuid import uuid4
-    
+    from app.infrastructure.api.middleware.auth import require_sensor_access
+
     repo = AlertRepository(session)
+    alert = await repo.get_by_id(alert_id)
+    if not alert:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Alert {alert_id} not found"
+        )
+
+    if current_user.role == "operator":
+        await require_sensor_access(alert.sensor_id, current_user)
+
     use_case = AcknowledgeAlert(repo)
-    
+
     try:
-        result = await use_case.execute(alert_id, user_id=uuid4())
+        result = await use_case.execute(alert_id, user_id=current_user.user_id)
         return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
-        )
+        ) from e
 
 
 @router.post("/{alert_id}/resolve")
+@audit_action(action_type=ActionType.ALERT_RESOLVED, resource_type="alert")
 async def resolve_alert(
+    request: Request,
     alert_id: UUID,
+    current_user: Annotated[TokenData, Depends(get_current_user)],
     session: AsyncSession = Depends(get_current_session),
 ):
     from app.application.alert.resolve_alert import ResolveAlert
-    from uuid import uuid4
-    
+    from app.infrastructure.api.middleware.auth import require_sensor_access
+
     repo = AlertRepository(session)
+    alert = await repo.get_by_id(alert_id)
+    if not alert:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Alert {alert_id} not found"
+        )
+
+    if current_user.role == "operator":
+        await require_sensor_access(alert.sensor_id, current_user)
+
     use_case = ResolveAlert(repo)
-    
+
     try:
-        result = await use_case.execute(alert_id, user_id=uuid4())
+        result = await use_case.execute(alert_id, user_id=current_user.user_id)
         return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
-        )
+        ) from e

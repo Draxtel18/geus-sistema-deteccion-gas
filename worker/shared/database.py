@@ -31,6 +31,9 @@ class WorkerDatabase:
         self.pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
+        if self.pool:
+            logger.info("postgres_already_connected")
+            return
         logger.info("connecting_to_postgres", host=settings.host, db=settings.db)
         self.pool = await asyncpg.create_pool(
             dsn=settings.dsn,
@@ -42,6 +45,7 @@ class WorkerDatabase:
     async def close(self) -> None:
         if self.pool:
             await self.pool.close()
+            self.pool = None
             logger.info("postgres_disconnected")
 
     async def fetchrow(self, query: str, *args) -> asyncpg.Record | None:

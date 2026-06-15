@@ -1,14 +1,16 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.user.assign_sensors import AssignSensors
 from app.application.user.create_user import CreateUser
 from app.application.user.update_user import UpdateUser
+from app.domain.audit.entities import ActionType
 from app.infrastructure.api.dependencies import get_current_session
+from app.infrastructure.api.middleware.audit import audit_action
 from app.infrastructure.api.middleware.auth import require_role, TokenData
 from app.infrastructure.database.repositories.user_repository import UserRepository
 
@@ -37,8 +39,10 @@ class AssignSensorsRequest(BaseModel):
 
 
 @router.post("", dependencies=[Depends(require_role("admin"))])
+@audit_action(action_type=ActionType.USER_CREATED, resource_type="user")
 async def create_user(
-    request: CreateUserRequest,
+    request: Request,
+    create_request: CreateUserRequest,
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = UserRepository(session)
@@ -46,11 +50,11 @@ async def create_user(
 
     try:
         result = await use_case.execute(
-            email=request.email,
-            password=request.password,
-            full_name=request.full_name,
-            role=request.role,
-            phone=request.phone,
+            email=create_request.email,
+            password=create_request.password,
+            full_name=create_request.full_name,
+            role=create_request.role,
+            phone=create_request.phone,
         )
         return result
     except ValueError as e:
@@ -110,9 +114,11 @@ async def get_user(
 
 
 @router.put("/{user_id}", dependencies=[Depends(require_role("admin"))])
+@audit_action(action_type=ActionType.USER_UPDATED, resource_type="user")
 async def update_user(
+    request: Request,
     user_id: UUID,
-    request: UpdateUserRequest,
+    update_request: UpdateUserRequest,
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = UserRepository(session)
@@ -121,12 +127,12 @@ async def update_user(
     try:
         result = await use_case.execute(
             user_id=user_id,
-            email=request.email,
-            password=request.password,
-            full_name=request.full_name,
-            role=request.role,
-            phone=request.phone,
-            status=request.status,
+            email=update_request.email,
+            password=update_request.password,
+            full_name=update_request.full_name,
+            role=update_request.role,
+            phone=update_request.phone,
+            status=update_request.status,
         )
         return result
     except ValueError as e:
@@ -137,7 +143,9 @@ async def update_user(
 
 
 @router.delete("/{user_id}", dependencies=[Depends(require_role("admin"))])
+@audit_action(action_type=ActionType.USER_DELETED, resource_type="user")
 async def delete_user(
+    request: Request,
     user_id: UUID,
     session: AsyncSession = Depends(get_current_session),
 ):
@@ -154,16 +162,18 @@ async def delete_user(
 
 
 @router.put("/{user_id}/sensors", dependencies=[Depends(require_role("admin"))])
+@audit_action(action_type=ActionType.CONFIG_UPDATED, resource_type="user_sensor_assignment")
 async def assign_sensors_to_user(
+    request: Request,
     user_id: UUID,
-    request: AssignSensorsRequest,
+    assign_request: AssignSensorsRequest,
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = UserRepository(session)
     use_case = AssignSensors(repo)
 
     try:
-        result = await use_case.execute(user_id, request.sensor_ids)
+        result = await use_case.execute(user_id, assign_request.sensor_ids)
         return result
     except ValueError as e:
         raise HTTPException(

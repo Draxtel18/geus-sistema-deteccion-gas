@@ -22,6 +22,7 @@ class SensorModel(Base):
     test_mode_expires_at = Column(DateTime, nullable=True)
     correction_factor = Column(Float, default=1.0, nullable=False)
     last_reading_at = Column(DateTime, nullable=True)
+    last_gas_ppm = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

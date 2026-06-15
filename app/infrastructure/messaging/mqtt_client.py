@@ -37,22 +37,16 @@ class MQTTClientWrapper:
     async def connect(self, retries: int = 30, delay: int = 2) -> None:
         tls_context = None
         if settings.mqtt_use_tls:
-            # Crear contexto SSL personalizado para deshabilitar verificación de hostname
-            # Esto es necesario porque el certificado está emitido para api.gastio.space
-            # pero nos conectamos internamente a 'mosquitto'
             tls_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
 
-            # Cargar el certificado CA (fullchain.pem contiene el certificado + cadena)
             if settings.mqtt_ca_cert_path:
                 tls_context.load_verify_locations(cafile=settings.mqtt_ca_cert_path)
 
-            # Cargar certificado y clave del cliente
             if settings.mqtt_client_cert_path and settings.mqtt_client_key_path:
                 tls_context.load_cert_chain(
                     certfile=settings.mqtt_client_cert_path, keyfile=settings.mqtt_client_key_path
                 )
 
-            # Deshabilitar verificación de hostname pero mantener verificación de certificado
             tls_context.verify_mode = ssl.CERT_REQUIRED
             tls_context.check_hostname = False
 
@@ -102,8 +96,7 @@ class MQTTClientWrapper:
         if not self.client:
             raise RuntimeError("El cliente MQTT no está conectado")
 
-        while True:  # El bucle de supervivencia
-            logger.info("Iniciando bucle de escucha de mensajes MQTT...")
+        while True:
             try:
                 async for message in self.client.messages:
                     topic = str(message.topic)
@@ -126,33 +119,28 @@ class MQTTClientWrapper:
                 logger.error(f"El cliente MQTT se desconectó inesperadamente: {e}")
                 logger.info("Iniciando protocolo de reconexión en 5 segundos...")
                 await asyncio.sleep(5)
-                # 1. Matamos limpiamente el contexto de la conexión caída
+
                 try:
                     await self.client.__aexit__(None, None, None)
                 except Exception:
                     pass
 
-                # 2. Re-conectamos usando tu método connect() (que ya tiene sus propios reintentos)
                 try:
                     await self.connect(retries=5, delay=5)
 
-                    # 3. ¡Restauramos la memoria! Volvemos a suscribirnos a todos los tópicos
                     for topic in self.subscriptions.keys():
                         await self.client.subscribe(topic)
                         logger.info(f"Suscripción restaurada exitosamente para: {topic}")
 
                 except Exception as reconn_error:
                     logger.error(f"Falló la reconexión automática: {reconn_error}")
-                    # Si la reconexión falla, el 'while True' vuelve a atraparlo,
-                    # espera otros 5 segundos y vuelve a intentar.
 
             except asyncio.CancelledError:
-                # Esto permite que tu aplicación (o FastAPI/Uvicorn) se apague sin lanzar errores feos
                 logger.info("Bucle de escucha MQTT detenido por el sistema de forma segura.")
                 break
             except Exception as e:
                 logger.critical(f"Error fatal no contemplado en el bucle MQTT: {e}", exc_info=True)
-                await asyncio.sleep(5)  # Previene que un error desconocido sature el procesador
+                await asyncio.sleep(5)
 
     def _topic_matches(self, topic: str, pattern: str) -> bool:
         topic_parts = topic.split("/")

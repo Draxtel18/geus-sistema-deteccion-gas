@@ -11,7 +11,7 @@ def audit_action(action_type: ActionType, resource_type: str):
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            from app.infrastructure.api.dependencies import get_current_session
+            from app.infrastructure.api.dependencies import get_database_session
             from app.infrastructure.database.repositories.audit_repository import AuditRepository
             from app.application.audit.log_action import LogAction
 
@@ -37,20 +37,23 @@ def audit_action(action_type: ActionType, resource_type: str):
             resource_id = kwargs.get("sensor_id") or kwargs.get("alert_id") or kwargs.get("user_id")
 
             try:
-                async for session in get_current_session():
-                    repo = AuditRepository(session)
-                    use_case = LogAction(repo)
+                async for session in get_database_session():
+                    try:
+                        repo = AuditRepository(session)
+                        use_case = LogAction(repo)
 
-                    await use_case.execute(
-                        user_id=user_id,
-                        action_type=action_type,
-                        resource_type=resource_type,
-                        resource_id=resource_id,
-                        details={"endpoint": str(request.url) if request else None},
-                        ip_address=ip_address,
-                        user_agent=user_agent,
-                    )
-                    await session.commit()
+                        await use_case.execute(
+                            user_id=user_id,
+                            action_type=action_type,
+                            resource_type=resource_type,
+                            resource_id=resource_id,
+                            details={"endpoint": str(request.url) if request else None},
+                            ip_address=ip_address,
+                            user_agent=user_agent,
+                        )
+                        await session.commit()
+                    except Exception:
+                        await session.rollback()
                     break
             except Exception:
                 pass

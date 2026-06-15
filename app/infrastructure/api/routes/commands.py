@@ -1,12 +1,16 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.sensor.control_dissipator import ControlDissipator
+from app.domain.audit.entities import ActionType
 from app.domain.shared.exceptions import DissipatorLockedError, SensorNotFoundError
 from app.infrastructure.api.dependencies import get_current_session
+from app.infrastructure.api.middleware.audit import audit_action
+from app.infrastructure.api.middleware.auth import get_current_user, require_sensor_access, TokenData
 from app.infrastructure.database.repositories.sensor_repository import SensorRepository
 from app.infrastructure.messaging.mqtt_client import mqtt_client
 
@@ -31,8 +35,11 @@ class DissipatorCommandResponse(BaseModel):
 
 
 @router.post("/panic/{sensor_id}")
+@audit_action(action_type=ActionType.PANIC_BUTTON_PRESSED, resource_type="valve")
 async def panic_button(
+    request: Request,
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     session: AsyncSession = Depends(get_current_session),
 ):
     from app.domain.sensor.entities import CommandSource
@@ -75,8 +82,11 @@ async def panic_button(
 
 
 @router.post("/test-mode/{sensor_id}")
+@audit_action(action_type=ActionType.TEST_MODE_ACTIVATED, resource_type="sensor")
 async def activate_test_mode(
+    request: Request,
     sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
     timeout_minutes: int = 30,
     session: AsyncSession = Depends(get_current_session),
 ):
@@ -103,12 +113,15 @@ async def activate_test_mode(
 
 
 @router.post("/dissipator/{sensor_id}", response_model=DissipatorCommandResponse)
+@audit_action(action_type=ActionType.DISSIPATOR_ACTIVATED, resource_type="dissipator")
 async def control_dissipator(
+    request: Request,
     sensor_id: UUID,
-    request: DissipatorCommandRequest,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
+    command_request: DissipatorCommandRequest,
     session: AsyncSession = Depends(get_current_session),
 ):
-    if request.command not in ["on", "off"]:
+    if command_request.command not in ["on", "off"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Command must be 'on' or 'off'"
         )
@@ -119,7 +132,7 @@ async def control_dissipator(
     try:
         result = await use_case.execute(
             sensor_id=sensor_id,
-            command=request.command,
+            command=command_request.command,
             user_id=None,
         )
 
@@ -127,7 +140,7 @@ async def control_dissipator(
         if sensor:
             await mqtt_client.publish_dissipator_command(
                 device_id=sensor.device_id,
-                state=request.command,
+                state=command_request.command,
                 mode="manual",
             )
             mqtt_published = True

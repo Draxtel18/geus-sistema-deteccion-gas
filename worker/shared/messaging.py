@@ -67,7 +67,6 @@ class WorkerRabbitMQClient:
         if not self.channel:
             raise RuntimeError("RabbitMQ no está conectado")
 
-        # Declarar DLX + DLQ para evitar requeue infinito
         dlx_name = "gas.dlx"
         dlq_name = f"{queue_name}.dlq"
         dlx = await self.channel.declare_exchange(
@@ -94,7 +93,7 @@ class WorkerRabbitMQClient:
                     logger.error(
                         f"Error en el worker procesando mensaje de {queue_name}: {e}", exc_info=True
                     )
-                    raise  # NACK → DLQ si ya fue reentregado; requeue solo la primera vez
+                    raise  
 
         await queue.consume(message_handler)
 
@@ -111,24 +110,17 @@ class WorkerMQTTClient:
     async def connect(self, retries: int = 30, delay: int = 5) -> None:
         tls_context = None
         if settings.mqtt_use_tls:
-            # Crear contexto SSL personalizado para deshabilitar verificación de hostname
-            # Esto es necesario porque el certificado está emitido para api.gastio.space
-            # pero nos conectamos internamente a 'mosquitto'
             tls_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
 
-            # Cargar el certificado CA (fullchain.pem contiene el certificado + cadena)
             if settings.mqtt_ca_cert_path:
                 tls_context.load_verify_locations(cafile=settings.mqtt_ca_cert_path)
 
-            # Cargar certificado y clave del cliente
             if settings.mqtt_client_cert_path and settings.mqtt_client_key_path:
                 tls_context.load_cert_chain(
                     certfile=settings.mqtt_client_cert_path, keyfile=settings.mqtt_client_key_path
                 )
 
-            # Deshabilitar verificación de hostname pero mantener verificación de certificado
             tls_context.verify_mode = ssl.CERT_REQUIRED
-            tls_context.check_hostname = False
 
         client_kwargs: dict[str, Any] = {
             "hostname": settings.mqtt_broker_host,
@@ -165,7 +157,6 @@ class WorkerMQTTClient:
 
     @staticmethod
     def _serialize_payload(value: Any) -> Any:
-        """Convierte datetime/UUID a strings serializables para JSON."""
         if isinstance(value, datetime):
             return value.isoformat()
         if isinstance(value, UUID):
@@ -207,13 +198,11 @@ class WorkerMQTTClient:
                 logger.info("Worker iniciando protocolo de reconexión en 5 segundos...")
                 await asyncio.sleep(5)
 
-                # Matamos conexión vieja
                 try:
                     await self.client.__aexit__(None, None, None)
                 except Exception:
                     pass
 
-                # Reconectamos
                 try:
                     await self.connect(retries=5, delay=5)
                     for topic in self.subscribed_topics:

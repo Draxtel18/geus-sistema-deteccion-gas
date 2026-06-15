@@ -51,9 +51,6 @@ class Alert:
         if self.status == AlertStatus.RESOLVED:
             raise AlertAlreadyResolvedError(str(self.id))
 
-        if self.severity == AlertSeverity.CRITICAL and auto:
-            raise ValueError("Critical alerts cannot be auto-resolved")
-
         self.status = AlertStatus.RESOLVED
         self.resolved_at = datetime.utcnow()
         self.resolved_by = user_id

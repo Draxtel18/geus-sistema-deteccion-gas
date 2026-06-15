@@ -1,11 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.user.authenticate import AuthenticateUser
+from app.domain.audit.entities import ActionType
 from app.infrastructure.api.dependencies import get_current_session
+from app.infrastructure.api.middleware.audit import audit_action
 from app.infrastructure.api.middleware.auth import create_access_token, get_current_user, TokenData
 from app.infrastructure.database.repositories.user_repository import UserRepository
 
@@ -29,21 +31,23 @@ class RefreshRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
+@audit_action(action_type=ActionType.USER_LOGIN, resource_type="user")
 async def login(
-    request: LoginRequest,
+    request: Request,
+    login_request: LoginRequest,
     session: AsyncSession = Depends(get_current_session),
 ):
     repo = UserRepository(session)
     use_case = AuthenticateUser(repo)
 
     try:
-        result = await use_case.execute(request.email, request.password)
+        result = await use_case.execute(login_request.email, login_request.password)
         return LoginResponse(**result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
-        )
+        ) from e
 
 
 @router.post("/refresh")

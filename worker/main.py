@@ -9,6 +9,7 @@ from aiohttp import web
 from worker.alert_handler.consumer import AlertHandlerConsumer
 from worker.data_collector.consumer import DataCollectorConsumer
 from worker.gas_detection.consumer import GasDetectionConsumer
+from worker.shared.bridge import MQTTToRabbitMQBridge
 from worker.shared.database import worker_db
 
 logger = structlog.get_logger()
@@ -23,6 +24,7 @@ class WorkerManager:
             DataCollectorConsumer(),
             GasDetectionConsumer(),
             AlertHandlerConsumer(),
+            MQTTToRabbitMQBridge(),
         ]
 
     async def start(self):
@@ -31,7 +33,6 @@ class WorkerManager:
         signal.signal(signal.SIGINT, self.handle_shutdown)
         signal.signal(signal.SIGTERM, self.handle_shutdown)
 
-        # Iniciar healthcheck HTTP en background
         health_task = asyncio.create_task(self._start_health_server())
         self.tasks.append(health_task)
 
@@ -64,7 +65,6 @@ class WorkerManager:
     async def _health(self, request: web.Request) -> web.Response:
         checks = {}
 
-        # RabbitMQ
         rabbitmq_ok = False
         for c in self.consumers:
             if hasattr(c, "rabbitmq") and c.rabbitmq.connection:
@@ -72,7 +72,6 @@ class WorkerManager:
                 break
         checks["rabbitmq"] = rabbitmq_ok
 
-        # MQTT
         mqtt_ok = False
         for c in self.consumers:
             if hasattr(c, "mqtt") and c.mqtt.client:
@@ -80,7 +79,6 @@ class WorkerManager:
                 break
         checks["mqtt"] = mqtt_ok
 
-        # PostgreSQL (con timeout para evitar healthcheck colgado)
         postgres_ok = False
         try:
             if worker_db.pool:
