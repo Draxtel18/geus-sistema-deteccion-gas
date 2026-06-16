@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID, uuid4
 
 import structlog
@@ -28,7 +28,7 @@ class AssignSensors:
                     id=uuid4(),
                     user_id=user_id,
                     sensor_id=sensor_id,
-                    assigned_at=datetime.now(timezone.utc),
+                    assigned_at=datetime.utcnow(),
                 )
                 saved_assignment = await self.user_repository.assign_sensor(assignment)
                 new_assignments.append(saved_assignment)
