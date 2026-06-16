@@ -2,7 +2,7 @@ from datetime import datetime
 
 import structlog
 
-from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
+from shared.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
 
 logger = structlog.get_logger()
 

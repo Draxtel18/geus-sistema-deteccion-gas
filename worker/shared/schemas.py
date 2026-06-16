@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
+from shared.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
 
 
 class SensorReadingSchema(BaseModel):

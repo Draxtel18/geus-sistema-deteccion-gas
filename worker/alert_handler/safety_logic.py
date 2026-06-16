@@ -1,6 +1,6 @@
 import structlog
 
-from app.core.constants import GAS_THRESHOLD_CRITICAL
+from shared.constants import GAS_THRESHOLD_CRITICAL
 
 logger = structlog.get_logger()
 
