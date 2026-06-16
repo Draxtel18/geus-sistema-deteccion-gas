@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import NewType
 from uuid import UUID
 
+from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
+
 SensorId = NewType("SensorId", UUID)
 UserId = NewType("UserId", UUID)
 AlertId = NewType("AlertId", UUID)
@@ -19,13 +21,13 @@ class GasLevel:
             raise ValueError(f"Gas level must be between 0 and 10000 ppm, got {self.ppm}")
 
     def is_safe(self) -> bool:
-        return self.ppm < 200
+        return self.ppm < GAS_THRESHOLD_WARNING
 
     def is_warning(self) -> bool:
-        return 200 <= self.ppm < 500
+        return GAS_THRESHOLD_WARNING <= self.ppm < GAS_THRESHOLD_CRITICAL
 
     def is_critical(self) -> bool:
-        return self.ppm >= 500
+        return self.ppm >= GAS_THRESHOLD_CRITICAL
 
 
 @dataclass(frozen=True)

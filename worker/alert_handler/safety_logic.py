@@ -1,13 +1,15 @@
 import structlog
 
+from app.core.constants import GAS_THRESHOLD_CRITICAL
+
 logger = structlog.get_logger()
 
 
 class SafetyLogic:
     def __init__(
         self,
-        auto_valve_close_threshold: float = 500.0,
-        auto_dissipator_threshold: float = 500.0,
+        auto_valve_close_threshold: float = GAS_THRESHOLD_CRITICAL,
+        auto_dissipator_threshold: float = GAS_THRESHOLD_CRITICAL,
     ) -> None:
         self.auto_valve_close_threshold = auto_valve_close_threshold
         self.auto_dissipator_threshold = auto_dissipator_threshold

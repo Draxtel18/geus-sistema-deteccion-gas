@@ -1264,9 +1264,13 @@ components:
         gas_threshold_warning:
           type: integer
           description: PPM for warning alerts
+          minimum: 100
+          maximum: 1800
         gas_threshold_critical:
           type: integer
           description: PPM for critical alerts
+          minimum: 1200
+          maximum: 3000
         test_mode_timeout_minutes:
           type: integer
         alert_notification_timeout_seconds:
@@ -1280,11 +1284,11 @@ components:
         gas_threshold_warning:
           type: integer
           minimum: 100
-          maximum: 500
+          maximum: 1800
         gas_threshold_critical:
           type: integer
-          minimum: 300
-          maximum: 1000
+          minimum: 1200
+          maximum: 3000
         test_mode_timeout_minutes:
           type: integer
           minimum: 5

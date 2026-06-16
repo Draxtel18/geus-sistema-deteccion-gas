@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
+
 
 class SensorReadingSchema(BaseModel):
     device_id: str = Field(..., min_length=1, max_length=64)
@@ -30,10 +32,10 @@ class AlertSchema(BaseModel):
     @classmethod
     def validate_severity(cls, v: str, values: dict) -> str:
         gas_level = values.data.get("gas_level_ppm", 0)
-        if v == "warning" and not (200 <= gas_level < 500):
-            raise ValueError("Warning severity requires gas level between 200-500 ppm")
-        if v == "critical" and gas_level < 500:
-            raise ValueError("Critical severity requires gas level >= 500 ppm")
+        if v == "warning" and not (GAS_THRESHOLD_WARNING <= gas_level < GAS_THRESHOLD_CRITICAL):
+            raise ValueError(f"Warning severity requires gas level between {GAS_THRESHOLD_WARNING:.0f}-{GAS_THRESHOLD_CRITICAL:.0f} ppm")
+        if v == "critical" and gas_level < GAS_THRESHOLD_CRITICAL:
+            raise ValueError(f"Critical severity requires gas level >= {GAS_THRESHOLD_CRITICAL:.0f} ppm")
         return v
 
 

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
+from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
 from app.domain.safety.entities import SafetyLevel, SafetyProtocol, SafetyThresholds
 from app.domain.shared.value_objects import GasLevel
 
@@ -87,10 +88,10 @@ class GasLevelAnalyzer:
 
 def create_default_safety_protocol() -> SafetyProtocol:
     thresholds = SafetyThresholds(
-        warning_ppm=200.0,
-        critical_ppm=500.0,
-        auto_valve_close_ppm=500.0,
-        auto_dissipator_activate_ppm=500.0,
+        warning_ppm=GAS_THRESHOLD_WARNING,
+        critical_ppm=GAS_THRESHOLD_CRITICAL,
+        auto_valve_close_ppm=GAS_THRESHOLD_CRITICAL,
+        auto_dissipator_activate_ppm=GAS_THRESHOLD_WARNING,
     )
     return SafetyProtocol(
         thresholds=thresholds,

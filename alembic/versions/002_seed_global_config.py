@@ -13,6 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
 
 revision: str = "002"
 down_revision: str | None = "001"
@@ -36,14 +37,14 @@ def upgrade() -> None:
             {
                 "id": uuid4(),
                 "key": "gas_threshold_warning",
-                "value": {"value": 200, "unit": "ppm"},
+                "value": {"value": int(GAS_THRESHOLD_WARNING), "unit": "ppm"},
                 "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },
             {
                 "id": uuid4(),
                 "key": "gas_threshold_critical",
-                "value": {"value": 500, "unit": "ppm"},
+                "value": {"value": int(GAS_THRESHOLD_CRITICAL), "unit": "ppm"},
                 "updated_at": datetime.utcnow(),
                 "updated_by": None,
             },

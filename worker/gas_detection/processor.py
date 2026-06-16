@@ -2,14 +2,16 @@ from datetime import datetime
 
 import structlog
 
+from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
+
 logger = structlog.get_logger()
 
 
 class GasDetectionProcessor:
     def __init__(
         self,
-        warning_threshold: float = 200.0,
-        critical_threshold: float = 500.0,
+        warning_threshold: float = GAS_THRESHOLD_WARNING,
+        critical_threshold: float = GAS_THRESHOLD_CRITICAL,
     ) -> None:
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold

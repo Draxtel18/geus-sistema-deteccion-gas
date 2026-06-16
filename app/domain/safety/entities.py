@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.core.constants import GAS_THRESHOLD_CRITICAL, GAS_THRESHOLD_WARNING
+
 
 class SafetyLevel(StrEnum):
     SAFE = "safe"
@@ -18,10 +20,10 @@ class ActionType(StrEnum):
 
 @dataclass(frozen=True)
 class SafetyThresholds:
-    warning_ppm: float = 200.0
-    critical_ppm: float = 500.0
-    auto_valve_close_ppm: float = 500.0
-    auto_dissipator_activate_ppm: float = 500.0
+    warning_ppm: float = GAS_THRESHOLD_WARNING
+    critical_ppm: float = GAS_THRESHOLD_CRITICAL
+    auto_valve_close_ppm: float = GAS_THRESHOLD_CRITICAL
+    auto_dissipator_activate_ppm: float = GAS_THRESHOLD_WARNING
 
     def __post_init__(self) -> None:
         if self.warning_ppm >= self.critical_ppm:
