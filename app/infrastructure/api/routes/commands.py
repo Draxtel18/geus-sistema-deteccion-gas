@@ -6,8 +6,9 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.sensor.control_dissipator import ControlDissipator
+from app.application.sensor.control_valve import ControlValve
 from app.domain.audit.entities import ActionType
-from app.domain.shared.exceptions import DissipatorLockedError, SensorNotFoundError
+from app.domain.shared.exceptions import DissipatorLockedError, SensorNotFoundError, ValveOperationError
 from app.infrastructure.api.dependencies import get_current_session
 from app.infrastructure.api.middleware.audit import audit_action
 from app.infrastructure.api.middleware.auth import get_current_user, require_sensor_access, TokenData
@@ -31,6 +32,21 @@ class DissipatorCommandResponse(BaseModel):
     state: str
     activation_mode: str
     locked_by_alert: bool
+    mqtt_published: bool
+
+
+class ValveCommandRequest(BaseModel):
+    command: str
+
+    class Config:
+        json_schema_extra = {"example": {"command": "close"}}
+
+
+class ValveCommandResponse(BaseModel):
+    sensor_id: str
+    valve_id: str
+    command: str
+    state: str
     mqtt_published: bool
 
 
@@ -166,3 +182,54 @@ async def control_dissipator(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/valve/{sensor_id}", response_model=ValveCommandResponse)
+@audit_action(action_type=ActionType.VALVE_CLOSED, resource_type="valve")
+async def control_valve(
+    request: Request,
+    sensor_id: UUID,
+    _: Annotated[TokenData, Depends(require_sensor_access)],
+    command_request: ValveCommandRequest,
+    session: AsyncSession = Depends(get_current_session),
+):
+    if command_request.command not in ["open", "close"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Command must be 'open' or 'close'"
+        )
+
+    repo = SensorRepository(session)
+    use_case = ControlValve(repo)
+
+    try:
+        result = await use_case.execute(
+            sensor_id=sensor_id,
+            command=command_request.command,
+            user_id=None,
+        )
+
+        sensor = await repo.get_by_id(sensor_id)
+        if sensor:
+            await mqtt_client.publish_valve_command(
+                device_id=sensor.device_id,
+                command=command_request.command,
+                source="manual",
+            )
+            mqtt_published = True
+        else:
+            mqtt_published = False
+
+        return ValveCommandResponse(
+            sensor_id=result["sensor_id"],
+            valve_id=result["valve_id"],
+            command=result["command"],
+            state=result["state"],
+            mqtt_published=mqtt_published,
+        )
+
+    except SensorNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ValveOperationError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
