@@ -17,7 +17,7 @@ class AssignSensors:
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        existing_assignments = await self.user_repository.get_user_sensor_assignments(user_id)
+        existing_assignments = await self.user_repository.get_sensor_assignments(user_id)
         existing_sensor_ids = {assignment.sensor_id for assignment in existing_assignments}
 
         new_assignments = []
@@ -28,7 +28,7 @@ class AssignSensors:
                     user_id=user_id,
                     sensor_id=sensor_id,
                 )
-                saved_assignment = await self.user_repository.save_sensor_assignment(assignment)
+                saved_assignment = await self.user_repository.assign_sensor(assignment)
                 new_assignments.append(saved_assignment)
 
         logger.info(
