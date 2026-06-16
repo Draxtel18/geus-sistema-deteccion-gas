@@ -112,12 +112,17 @@ class DataCollectorConsumer:
             )
             try:
                 sensor = await self.sensor_repo.find_by_device_id(resolved_device_id)
+                if sensor is None:
+                    logger.warning(
+                        "sensor_not_found_for_update",
+                        device_id=resolved_device_id,
+                    )
                 timestamp = self._normalize_datetime(reading.timestamp)
                 sensor_status = self._determine_sensor_status(
                     sensor.get("status") if sensor else None,
                     mqtt_connected=True,
                 )
-                await worker_db.execute(
+                result = await worker_db.execute(
                     """
                     UPDATE sensors
                     SET last_gas_ppm = $1,
@@ -134,11 +139,18 @@ class DataCollectorConsumer:
                     reading.wifi_signal,
                     resolved_device_id,
                 )
-                logger.info(
-                    "sensor_last_gas_ppm_updated",
-                    device_id=resolved_device_id,
-                    last_gas_ppm=reading.gas_ppm,
-                )
+                if isinstance(result, str) and result.startswith("UPDATE") and int(result.split()[-1]) > 0:
+                    logger.info(
+                        "sensor_last_gas_ppm_updated",
+                        device_id=resolved_device_id,
+                        last_gas_ppm=reading.gas_ppm,
+                    )
+                else:
+                    logger.warning(
+                        "sensor_update_affected_zero_rows",
+                        device_id=resolved_device_id,
+                        result=result,
+                    )
             except Exception as e:
                 logger.error(
                     "failed_to_update_sensor_last_gas_ppm",
