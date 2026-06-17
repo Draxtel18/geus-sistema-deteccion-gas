@@ -35,9 +35,9 @@ expo_settings = ExpoSettings()
 
 class AlertNotifier:
     _last_sent: dict[tuple[str, str], datetime] = {}
-    _cooldown_seconds: int = 300
+    _cooldown_seconds: int = 120
 
-    def __init__(self, cooldown_seconds: int = 300) -> None:
+    def __init__(self, cooldown_seconds: int = 120) -> None:
         self._cooldown_seconds = cooldown_seconds
 
     async def send_notification(
@@ -207,9 +207,7 @@ class AlertNotifier:
             )
             raise
 
-    async def _send_push(
-        self, tokens: list[str], title: str, body: str, data: dict
-    ) -> None:
+    async def _send_push(self, tokens: list[str], title: str, body: str, data: dict) -> None:
         if not expo_settings.expo_enabled or not tokens:
             logger.info(
                 "push_notification_skipped",
