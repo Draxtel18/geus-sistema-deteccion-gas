@@ -241,6 +241,7 @@ class AlertNotifier:
                 "body": body,
                 "sound": "default",
                 "priority": "high",
+                "channelId": "default",
                 "data": data,
             }
             for token in tokens
